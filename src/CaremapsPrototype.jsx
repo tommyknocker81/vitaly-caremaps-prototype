@@ -1,0 +1,987 @@
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Users, Repeat, LayoutGrid, Bell, ShieldAlert, UserCog, FileText, BarChart3,
+  History, ChevronsLeft, ChevronLeft, ChevronDown, ChevronRight, User, Star,
+  Plus, X, Search, Calendar, ClipboardCheck, ClipboardList, UsersRound, FileStack,
+} from "lucide-react";
+
+// Vitaly RSO design tokens (Figma: OpenLine-Vitaly) — shared with the
+// encounters and documents prototypes so all three read as one product.
+const T = {
+  primary: "#0080A3",
+  secondary: "#00324B",
+  dark: "#001E2D",
+  success: "#62A752",
+  warning: "#FFB853",
+  border: "#DEE2E6",
+  bodyText: "#212529",
+  gray700: "#495057",
+  gray600: "#6C757D",
+  gray500: "#ADB5BD",
+  gray400: "#CED4DA",
+  lightBg: "#E9ECEF",
+  light: "#F7F8FA",
+  fontFamily: "'Source Sans 3', 'Source Sans Pro', system-ui, sans-serif",
+};
+
+/* ================= mock data ================= */
+
+const MEMBER_POOL = [
+  { id: "m1", name: "Dr. Emily Carter", jobTitle: "Medical Oncology", org: "Erasmus MC – Endoscopy Unit", email: "emily.carter@erasmus.nl" },
+  { id: "m2", name: "Dr. Felix Hartmann", jobTitle: "Neurology", org: "St. Antonius Hospital", email: "fhartmann@antonious.nl" },
+  { id: "m3", name: "Dr. Ethan Carter", jobTitle: "Medical Oncology", org: "St. Antonius Hospital", email: "ecarter@antonious.nl" },
+  { id: "m4", name: "Dr. Sophia Reynolds", jobTitle: "Medical Oncology", org: "St. Antonius Hospital", email: "sreynolds@antonious.nl" },
+  { id: "m5", name: "Dr. Clara Mitchell", jobTitle: "Physiotherapist", org: "St. Antonius Hospital", email: "cmitchell@antonious.nl" },
+  { id: "m6", name: "Dr. Alex Thompson", jobTitle: "Neurology", org: "St. Antonius Hospital", email: "thompson@antonious.nl" },
+  { id: "m7", name: "Dr. Robert Hamilton", jobTitle: "Oncologist", org: "St. Antonius Hospital", email: "rhamilton@antonious.nl" },
+  { id: "m8", name: "Mary Brown", jobTitle: "Community Nurse", org: "Regional Homecare", email: "mary.brown@homecare.nl" },
+  { id: "m9", name: "Mike Myers", jobTitle: "Physiotherapist", org: "UMC Utrecht - Physiotherapy", email: "mmyers@umcu.nl" },
+  { id: "m10", name: "Dr. Mark Southerland", jobTitle: "GP", org: "Huisartsenpraktijk Zuid", email: "msoutherland@gp.nl" },
+];
+
+const ROLE_POOL = ["Community nurse", "Oncologist", "Physiotherapist", "GP", "Social worker", "Spiritual counsellor"];
+
+const ACTIVITY_TYPES = ["Physiotherapy", "Pain management", "Palliative nursing visit", "Spiritual counselling", "Social work consult", "Home care evaluation"];
+const PROVIDERS = ["UMC Utrecht - Physiotherapy", "Regional Homecare", "St. Antonius Hospital", "Huisartsenpraktijk Zuid"];
+
+const CARE_UNITS = ["Palliative Care", "Oncology Care", "Chronic Disease Management"];
+const TEMPLATES = ["End of life care", "Symptom management", "Bereavement support"];
+
+function initialActivities() {
+  return [
+    { id: "a1", title: "Assign Case manager", cadence: "(1/1)", status: "required", mandatory: true, category: "todo" },
+    { id: "a2", title: "Treatment summary appointment", cadence: "(1/1)", status: "undefined", category: "todo" },
+    { id: "a3", title: "Mammography", cadence: "(1/1)", status: "undefined", category: "todo" },
+    { id: "a4", title: "Virtual follow-up review", cadence: "(1/5)", status: "undefined", category: "todo" },
+    { id: "a5", title: "Virtual follow-up review", cadence: "(AD HOC)", status: "undefined", category: "todo" },
+    { id: "a6", title: "Questionnaire", cadence: "(1/5)", status: "undefined", category: "todo", link: "Breast cancer questionnaire" },
+    { id: "a7", title: "HNA questionnaire", cadence: "(1/5)", status: "undefined", category: "todo", link: "Holistic Needs Assessment" },
+  ];
+}
+
+const SET_PLAN_ITEMS = [
+  { id: "sp1", label: "Assign Case manager", right: "On time", sub: "At activation", toggle: false },
+  { id: "sp2", label: "Initial PZP conversation", right: "Case Manager", sub: "Due: 1 week", toggle: false },
+  { id: "sp3", label: "Record patient goals and whishes", right: "Mandatory", sub: "Due: 2 weeks", toggle: false },
+  { id: "sp4", label: "Record treatment wishes", right: "Mandatory", sub: "5 times, 1 a year", toggle: false },
+  { id: "sp5", label: "Record emergency contacts", sub: "5 times, 1 a year", toggle: true, defaultOn: true },
+  { id: "sp6", label: "Review PZP and existing advance directive", sub: "Every 4 weeks", toggle: true, defaultOn: true },
+];
+
+function formatDMY(iso) {
+  const d = new Date(`${iso}T00:00:00`);
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+}
+function addMonthsDMY(iso, n) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setMonth(d.getMonth() + n);
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+}
+
+/* ================= building blocks ================= */
+
+function Badge({ children, tone = "gray" }) {
+  const tones = {
+    gray: { backgroundColor: "#5B6774", color: "#fff" },
+    teal: { backgroundColor: T.primary, color: "#fff" },
+    green: { backgroundColor: T.success, color: "#fff" },
+  };
+  return (
+    <span className="px-2.5 py-1 rounded text-[11px] font-bold tracking-wide uppercase shrink-0" style={tones[tone]}>
+      {children}
+    </span>
+  );
+}
+
+function Btn({ children, onClick, variant = "solid", small, disabled, className = "", type = "button" }) {
+  const base = "rounded font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5 whitespace-nowrap";
+  const size = small ? "px-3.5 py-1.5 text-[13px]" : "px-4 py-2 text-[14px]";
+  const variants = {
+    solid: { backgroundColor: T.primary, color: "#fff" },
+    green: { backgroundColor: T.success, color: "#fff" },
+    outline: { backgroundColor: "#fff", color: T.primary, border: `1px solid ${T.primary}` },
+    neutral: { backgroundColor: "#fff", color: T.gray700, border: `1px solid ${T.gray400}` },
+  };
+  return (
+    <button type={type} className={`${base} ${size} ${className}`} style={variants[variant]} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+
+function Modal({ title, onClose, children, width = 640 }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: "rgba(0,50,75,0.55)" }}>
+      <div className="bg-white rounded-md shadow-2xl flex flex-col" style={{ width, maxWidth: "94vw", maxHeight: "90vh" }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: T.border }}>
+          <h3 className="font-bold tracking-wide text-[15px] uppercase" style={{ color: T.secondary }}>{title}</h3>
+          <button onClick={onClose} aria-label="Close">
+            <X size={18} style={{ color: T.gray600 }} />
+          </button>
+        </div>
+        <div className="p-6 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children, required }) {
+  return (
+    <div className="mb-4">
+      <label className="block text-[13px] font-semibold mb-1.5" style={{ color: T.bodyText }}>
+        {label} {required && <span style={{ color: "#DC5B5B" }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const selectCls = "w-full border rounded px-3 py-2 text-[14px] bg-white outline-none focus:ring-1";
+const selectStyle = { borderColor: T.gray400, color: T.bodyText };
+
+function ToggleField({ on, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className="flex items-center gap-2"
+      aria-pressed={on}
+    >
+      <span className="text-[14px] font-medium" style={{ color: T.bodyText }}>{on ? "On" : "Off"}</span>
+      <span
+        className="w-9 h-5 rounded-full relative transition-colors shrink-0"
+        style={{ backgroundColor: on ? T.primary : T.gray400 }}
+      >
+        <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all" style={{ left: on ? 18 : 2 }} />
+      </span>
+    </button>
+  );
+}
+
+/* ================= chrome: sidebar / header / patient bar ================= */
+
+const NAV_ITEMS = [
+  { icon: Users, label: "Patients" },
+  { icon: Repeat, label: "Referrals" },
+  { icon: LayoutGrid, label: "MDT meetings" },
+  { icon: ClipboardCheck, label: "Caremaps", active: true },
+  { icon: Bell, label: "Notifications" },
+  { icon: ShieldAlert, label: "Care services" },
+  { icon: UserCog, label: "User management" },
+  { icon: FileText, label: "Integration logs" },
+  { icon: BarChart3, label: "Analytics" },
+];
+
+function Sidebar() {
+  return (
+    <div className="w-64 shrink-0 flex flex-col text-white" style={{ backgroundColor: T.secondary }}>
+      <div className="h-[88px] flex items-center gap-3 px-5" style={{ backgroundColor: T.secondary }}>
+        <svg width="34" height="34" viewBox="0 0 32 32" fill="#17A3C6">
+          <path d="M4 1H28L21 9H11L4 1Z" />
+          <path d="M31 4V28L23 21V11L31 4Z" />
+          <path d="M28 31H4L11 23H21L28 31Z" />
+          <path d="M1 4L9 11V21L1 28V4Z" />
+        </svg>
+        <div className="leading-none">
+          <div className="text-[9px] tracking-[0.25em] font-semibold">OPEN<span className="font-normal opacity-80">LINE</span></div>
+          <div className="text-[19px] font-bold tracking-[0.08em] mt-0.5">VITALY</div>
+        </div>
+      </div>
+      <nav className="flex-1 py-2">
+        {NAV_ITEMS.map(({ icon: Icon, label, active }) => (
+          <button
+            key={label}
+            className="w-full flex items-center gap-3 px-5 py-2.5 text-[14px] text-left transition-colors hover:bg-white/10"
+            style={active ? { backgroundColor: T.primary } : undefined}
+          >
+            <Icon size={17} className="shrink-0" /> {label}
+          </button>
+        ))}
+      </nav>
+      <button className="w-full flex items-center gap-3 px-5 py-3 text-[14px] text-left hover:bg-white/10">
+        <History size={17} /> Last view patients
+      </button>
+      <button className="w-full flex items-center gap-3 px-5 py-3.5 text-[14px] text-left hover:bg-white/10" style={{ backgroundColor: T.dark }}>
+        <ChevronsLeft size={17} /> Collapse menu
+      </button>
+    </div>
+  );
+}
+
+function TopHeader() {
+  return (
+    <div className="flex items-center justify-between pl-8 pr-6 py-2.5 bg-white border-b" style={{ borderColor: T.border }}>
+      <div className="flex items-center gap-2.5">
+        <h1 className="text-[24px] font-semibold leading-tight" style={{ color: T.bodyText }}>Patients</h1>
+        <button className="w-6 h-6 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: T.primary }} aria-label="Add patient">
+          <Plus size={15} />
+        </button>
+      </div>
+      <div className="flex items-center gap-4">
+        <Star size={19} fill={T.primary} style={{ color: T.primary }} />
+        <span className="relative">
+          <Bell size={19} style={{ color: T.primary }} />
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+        </span>
+        <span className="w-px h-6" style={{ backgroundColor: T.border }} />
+        <span className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: "#DCEEF3" }}>
+          <User size={18} style={{ color: T.primary }} />
+        </span>
+        <span className="text-[15px] font-semibold" style={{ color: T.bodyText }}>Dr. HENLEY, Maria</span>
+        <ChevronDown size={16} style={{ color: T.primary }} />
+      </div>
+    </div>
+  );
+}
+
+const PATIENT_TABS = ["PX360", "CONTACTS", "DOCUMENTS", "REFERRAL", "CAREMAPS"];
+
+function PatientBar({ back }) {
+  return (
+    <div className="flex items-stretch border-b bg-white" style={{ borderColor: T.border }}>
+      <button onClick={back} className="flex items-center px-3 border-r" style={{ borderColor: T.border }} aria-label="Back">
+        <ChevronLeft size={18} style={{ color: T.primary }} />
+      </button>
+      <div className="flex items-center gap-3 px-4 py-3 border-r" style={{ borderColor: T.border }}>
+        <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: "#DCEEF3" }}>
+          <User size={26} style={{ color: T.primary }} />
+        </span>
+        <div className="leading-snug">
+          <div className="text-[15px] font-bold" style={{ color: T.bodyText }}>DE VRIES, Jan</div>
+          <div className="text-[13px]" style={{ color: T.gray600 }}>ID 161 885 4347</div>
+          <div className="text-[13px]" style={{ color: T.gray600 }}>14.03.1953 (73yrs) · Male</div>
+        </div>
+      </div>
+      <div className="flex-1 flex items-stretch justify-end gap-10 px-10">
+        {PATIENT_TABS.map((tab) => {
+          const active = tab === "CAREMAPS";
+          return (
+            <span
+              key={tab}
+              className={`relative flex items-center text-[13px] tracking-wide ${active ? "font-bold" : "font-normal"}`}
+              style={{ color: active ? T.primary : T.gray700 }}
+            >
+              {tab}
+              {active && <span className="absolute left-0 right-0 bottom-0 h-[3px]" style={{ backgroundColor: T.primary }} />}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ================= HIS shell (start screen) ================= */
+
+function EHRSection({ title, children }) {
+  return (
+    <div className="mb-3">
+      <div className="text-white text-[12px] font-semibold px-3 py-1.5 flex items-center justify-between" style={{ backgroundColor: T.secondary }}>
+        {title} <span className="opacity-60 text-[11px]">…</span>
+      </div>
+      <div className="border border-t-0 p-3 text-[12px] space-y-1.5" style={{ borderColor: T.border, color: T.gray700 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LegacyEHRPanel() {
+  return (
+    <div className="w-[420px] shrink-0 flex flex-col text-[12px]" style={{ backgroundColor: "#F1F3F5", borderRight: `1px solid ${T.border}` }}>
+      <div className="flex items-center gap-3 px-3 py-2 text-white text-[11px]" style={{ backgroundColor: T.secondary }}>
+        <span>📁</span><span>🔧</span><span>⚙️</span><span>?</span><span className="ml-auto">⏻</span>
+      </div>
+      <div className="px-3 py-3 border-b" style={{ borderColor: T.border, backgroundColor: "#fff" }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-full bg-gray-300 shrink-0" />
+          <div>
+            <div className="font-bold text-[13px]" style={{ color: T.bodyText }}>Janssen Demo, A.A.</div>
+            <div style={{ color: T.gray600 }}>05-02-1951 (66 jr)</div>
+            <div style={{ color: T.gray600 }}>443 &nbsp; ☎ 0612345678</div>
+          </div>
+        </div>
+        <div className="flex mt-3 text-[11px] font-semibold">
+          <div className="px-3 py-1.5 border" style={{ borderColor: T.border, color: T.gray700 }}>Favorieten</div>
+          <div className="px-3 py-1.5 text-white" style={{ backgroundColor: T.primary }}>Dossier</div>
+        </div>
+        <div className="mt-2 space-y-1 text-[12px]" style={{ color: T.primary }}>
+          <div className="py-0.5">Voorblad</div>
+          <div className="py-0.5">Naslag 2.0</div>
+          <div className="py-0.5" style={{ color: T.bodyText }}>EPD Dashboard</div>
+          <div className="py-1 px-2 mt-1 font-semibold text-white" style={{ backgroundColor: T.primary }}>Consult</div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3" style={{ backgroundColor: "#F1F3F5" }}>
+        <EHRSection title="Patiëntgegevens">
+          <div>Adres&nbsp;&nbsp;: Violenstraat 35, 3551 BB Utrecht</div>
+          <div>Telefoon&nbsp;: 0612345678</div>
+          <div>Huisarts&nbsp;: J.W. Dommers (Huisarts)</div>
+          <div>Verzekering&nbsp;: FBTO (V02110)</div>
+        </EHRSection>
+        <EHRSection title="Episodelijst">
+          <div>1970 &nbsp;Constitutioneel eczeem</div>
+          <div>2012 &nbsp;Enkel symptomen/klachten – Enkelfractuur rechts</div>
+          <div>2010 &nbsp;Moeheid/zwakte</div>
+        </EHRSection>
+        <EHRSection title="Aandachtspunten">
+          <div>27-02-2017 &nbsp;Familie-anamnese: HVZ+</div>
+          <div>27-02-2017 &nbsp;Roken +</div>
+        </EHRSection>
+        <EHRSection title="Overige voorgeschiedenis">
+          <div className="opacity-0">—</div>
+        </EHRSection>
+      </div>
+      <div className="flex items-center justify-between px-3 py-2 text-white text-[11px]" style={{ backgroundColor: T.secondary }}>
+        <span>▲ Overige acties</span>
+        <span>✕ Sluiten</span>
+      </div>
+    </div>
+  );
+}
+
+function AppRow({ icon: Icon, title, desc, children }) {
+  return (
+    <div className="flex gap-4 py-5 border-b" style={{ borderColor: T.border }}>
+      <div className="w-11 h-11 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: T.secondary }}>
+        <Icon size={18} color="#fff" />
+      </div>
+      <div className="flex-1">
+        <div className="font-bold text-[14px]" style={{ color: T.secondary }}>{title}</div>
+        <div className="text-[13px] mt-0.5 mb-3" style={{ color: T.gray600 }}>{desc}</div>
+        <div className="flex items-center gap-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function HISShell({ hasCaremap, onCreate, onOpen }) {
+  return (
+    <div className="flex h-screen overflow-hidden" style={{ fontFamily: T.fontFamily }}>
+      <LegacyEHRPanel />
+      <div className="flex-1 flex flex-col overflow-y-auto" style={{ backgroundColor: T.light }}>
+        <div className="text-white px-8 py-4 flex items-center gap-3" style={{ backgroundColor: T.secondary }}>
+          <svg width="30" height="30" viewBox="0 0 32 32" fill="#17A3C6">
+            <path d="M4 1H28L21 9H11L4 1Z" /><path d="M31 4V28L23 21V11L31 4Z" />
+            <path d="M28 31H4L11 23H21L28 31Z" /><path d="M1 4L9 11V21L1 28V4Z" />
+          </svg>
+          <div className="leading-none">
+            <div className="text-[9px] tracking-[0.25em] font-semibold">OPEN<span className="font-normal opacity-80">LINE</span></div>
+            <div className="text-[16px] font-bold tracking-[0.08em] mt-0.5">VITALY</div>
+          </div>
+        </div>
+        <div className="p-10 max-w-2xl">
+          <h2 className="text-[20px] font-semibold mb-6" style={{ color: T.bodyText }}>Choose the application you would like to open</h2>
+          <div className="bg-white rounded shadow-sm px-6">
+            <AppRow icon={ClipboardList} title="Advanced Care Planning (ACP)" desc="Create, manage, and review personalised care plans and patient preferences.">
+              <Btn small variant="outline" disabled>Open plan</Btn>
+            </AppRow>
+            <AppRow icon={UsersRound} title="Multidisciplinary Team Meetings (MDT)" desc="Coordinate and manage collaborative care discussions across healthcare teams.">
+              <Btn small variant="outline" disabled><Plus size={13} />New referral to MDT</Btn>
+              <span className="text-[13px] font-semibold" style={{ color: T.gray500 }}>Show (3) referrals</span>
+            </AppRow>
+            <AppRow icon={User} title="Patient 360 (Px360)" desc="Access a complete, unified view of patient information, history, and activity.">
+              <Btn small variant="outline" disabled>Open</Btn>
+            </AppRow>
+            <AppRow icon={FileStack} title="Caremaps" desc="Access patient-related documents and clinical files.">
+              <Btn small onClick={onCreate}><Plus size={13} />Create new caremap</Btn>
+              {hasCaremap && (
+                <button onClick={onOpen} className="text-[13px] font-semibold" style={{ color: T.primary }}>
+                  Show (1) active caremap
+                </button>
+              )}
+            </AppRow>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= modals ================= */
+
+function CreateCaremapModal({ onClose, onCreate }) {
+  const [unit, setUnit] = useState(CARE_UNITS[0]);
+  const [template, setTemplate] = useState(TEMPLATES[0]);
+  return (
+    <Modal title="Create Caremap" onClose={onClose} width={520}>
+      <Field label="Care unit" required>
+        <select className={selectCls} style={selectStyle} value={unit} onChange={(e) => setUnit(e.target.value)}>
+          {CARE_UNITS.map((u) => <option key={u}>{u}</option>)}
+        </select>
+      </Field>
+      <Field label="Caremap template">
+        <select className={selectCls} style={selectStyle} value={template} onChange={(e) => setTemplate(e.target.value)}>
+          {TEMPLATES.map((t) => <option key={t}>{t}</option>)}
+        </select>
+      </Field>
+      <div className="flex justify-end gap-3 mt-6">
+        <Btn variant="neutral" onClick={onClose}>Close</Btn>
+        <Btn onClick={() => onCreate(unit, template)}>Create Caremap</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function SetPlanModal({ caremap, onClose, onActivate, onSaveDraft }) {
+  const [toggles, setToggles] = useState(() => {
+    const t = {};
+    SET_PLAN_ITEMS.forEach((i) => { if (i.toggle) t[i.id] = i.defaultOn; });
+    return t;
+  });
+  const [date, setDate] = useState("2026-08-12");
+  const locked = caremap.status === "active";
+
+  return (
+    <Modal title="Set plan and activate caremap" onClose={onClose} width={760}>
+      <div className="mb-5">
+        <div className="font-bold text-[15px] mb-1.5" style={{ color: T.secondary }}>Setting the plan</div>
+        <div className="text-[13px] leading-relaxed" style={{ color: T.gray600 }}>
+          Activate or configure the activities you would like to have in the patient's care map. All mandatory
+          activities will be added to the care map plan by default. Once you activate the plan, you will not be
+          able to change it anymore.
+        </div>
+      </div>
+      <div className="space-y-2 mb-6">
+        {SET_PLAN_ITEMS.map((item) => (
+          <div key={item.id} className="flex items-center justify-between border rounded px-4 py-3" style={{ borderColor: T.border, backgroundColor: T.light }}>
+            <div className="flex items-center gap-3">
+              <Calendar size={16} style={{ color: T.primary }} />
+              <span className="text-[14px] font-semibold" style={{ color: T.bodyText }}>{item.label}</span>
+            </div>
+            {item.toggle ? (
+              <div className="text-right">
+                <ToggleField on={!!toggles[item.id]} onChange={() => !locked && setToggles((t) => ({ ...t, [item.id]: !t[item.id] }))} />
+                <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>{item.sub}</div>
+              </div>
+            ) : (
+              <div className="text-right">
+                <div className="text-[14px] font-semibold" style={{ color: T.bodyText }}>{item.right}</div>
+                <div className="text-[12px]" style={{ color: T.gray600 }}>{item.sub}</div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mb-2">
+        <div className="font-bold text-[15px] mb-1.5" style={{ color: T.secondary }}>When will the plan start?</div>
+        <div className="text-[13px] mb-2 leading-relaxed" style={{ color: T.gray600 }}>
+          All configured activities above will refer to the start date you set below. Start date is generally a
+          surgery date or in case of no surgery, MDT meeting date or concluded therapy date.
+        </div>
+        <input
+          type="date"
+          value={date}
+          disabled={locked}
+          onChange={(e) => setDate(e.target.value)}
+          className={selectCls}
+          style={{ ...selectStyle, maxWidth: 220 }}
+        />
+      </div>
+      <div className="flex justify-between mt-6">
+        <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
+        {!locked && (
+          <div className="flex gap-3">
+            <Btn variant="outline" onClick={() => { onSaveDraft(); onClose(); }}>Save as Draft</Btn>
+            <Btn onClick={() => { onActivate(date); onClose(); }}>Activate caremap</Btn>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function AssignRoleModal({ fixedRole, onClose, onAssign }) {
+  const [role, setRole] = useState(fixedRole || ROLE_POOL[0]);
+  const [selected, setSelected] = useState(null);
+  const [query, setQuery] = useState("");
+  const [jobFilter, setJobFilter] = useState("");
+  const jobTitles = [...new Set(MEMBER_POOL.map((m) => m.jobTitle))];
+  const filtered = MEMBER_POOL.filter(
+    (m) => m.name.toLowerCase().includes(query.toLowerCase()) && (!jobFilter || m.jobTitle === jobFilter)
+  );
+
+  return (
+    <Modal title="Assign member a role" onClose={onClose} width={820}>
+      <div className="mb-4 text-[14px]" style={{ color: T.bodyText }}>
+        Assign member to role:{" "}
+        {fixedRole ? (
+          <span className="font-bold" style={{ color: T.primary }}>{fixedRole}</span>
+        ) : (
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="border rounded px-2 py-1 text-[14px] font-bold outline-none"
+            style={{ borderColor: T.gray400, color: T.primary }}
+          >
+            {ROLE_POOL.map((r) => <option key={r}>{r}</option>)}
+          </select>
+        )}
+      </div>
+      <div className="flex gap-3 mb-4">
+        <div className="flex-1 flex items-center border rounded px-3 py-2" style={{ borderColor: T.gray400 }}>
+          <Search size={14} style={{ color: T.gray600 }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" className="ml-2 text-[14px] w-full outline-none" />
+        </div>
+        <select className={selectCls} style={{ ...selectStyle, maxWidth: 190 }} value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
+          <option value="">Job title</option>
+          {jobTitles.map((j) => <option key={j}>{j}</option>)}
+        </select>
+      </div>
+      <div className="border rounded overflow-hidden" style={{ borderColor: T.border }}>
+        <div className="grid text-[12px] font-bold uppercase px-4 py-2.5" style={{ gridTemplateColumns: "24px 1.4fr 1fr 1.4fr 1.4fr", backgroundColor: T.light, color: T.gray600 }}>
+          <div /><div>First and last name</div><div>Job title</div><div>Organisation</div><div>Contact</div>
+        </div>
+        <div style={{ maxHeight: 300, overflowY: "auto" }}>
+          {filtered.map((m) => (
+            <div
+              key={m.id}
+              onClick={() => setSelected(m.id)}
+              className="grid items-center px-4 py-3 text-[14px] border-t cursor-pointer"
+              style={{ gridTemplateColumns: "24px 1.4fr 1fr 1.4fr 1.4fr", borderColor: T.border, backgroundColor: selected === m.id ? "#DCEEF3" : "#fff" }}
+            >
+              <input type="radio" readOnly checked={selected === m.id} style={{ accentColor: T.primary }} />
+              <div style={{ color: T.bodyText }}>{m.name}</div>
+              <div style={{ color: T.gray600 }}>{m.jobTitle}</div>
+              <div style={{ color: T.gray600 }}>{m.org}</div>
+              <div style={{ color: T.primary }}>{m.email}</div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-4 py-6 text-center text-[13px]" style={{ color: T.gray600 }}>No matching members.</div>
+          )}
+        </div>
+      </div>
+      <div className="flex justify-end gap-3 mt-6">
+        <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
+        <Btn disabled={!selected} onClick={() => onAssign(role, selected)}>Assign a member</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function AddActivityModal({ onClose, onAdd, team }) {
+  const [type, setType] = useState(ACTIVITY_TYPES[0]);
+  const [provider, setProvider] = useState(PROVIDERS[0]);
+  const [status, setStatus] = useState("Required");
+  const [week, setWeek] = useState("");
+  const [comment, setComment] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const filledTeam = team.filter((t) => t.memberId);
+
+  const submit = () => {
+    onAdd({ type, provider, status, week, comment, assignee });
+    onClose();
+  };
+
+  return (
+    <Modal title="Add new activity" onClose={onClose} width={620}>
+      <Field label="Activity type" required>
+        <select className={selectCls} style={selectStyle} value={type} onChange={(e) => setType(e.target.value)}>
+          {ACTIVITY_TYPES.map((t) => <option key={t}>{t}</option>)}
+        </select>
+      </Field>
+      <Field label="Select provider" required>
+        <select className={selectCls} style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
+          {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
+        </select>
+      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Status" required>
+          <select className={selectCls} style={selectStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option>Required</option><option>Undefined</option><option>On</option><option>Off</option>
+          </select>
+        </Field>
+        <Field label="Set required week" required>
+          <input type="date" className={selectCls} style={selectStyle} value={week} onChange={(e) => setWeek(e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Assign to">
+        <select className={selectCls} style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+          <option value="">Unassigned</option>
+          {filledTeam.map((t) => {
+            const m = MEMBER_POOL.find((x) => x.id === t.memberId);
+            return <option key={t.id} value={m.id}>{m.name} ({t.label})</option>;
+          })}
+        </select>
+        {filledTeam.length === 0 && (
+          <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>Add team members first to be able to assign this activity to someone.</div>
+        )}
+      </Field>
+      <Field label="Write your comment" required>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Autosize height based on content lines"
+          className={selectCls}
+          style={{ ...selectStyle, minHeight: 90, resize: "vertical" }}
+        />
+      </Field>
+      <button className="flex items-center gap-2 text-[14px] font-semibold mb-2" style={{ color: T.primary }}>
+        <Plus size={14} /> Add document
+      </button>
+      <div className="flex justify-between mt-6">
+        <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
+        <div className="flex gap-3">
+          <Btn variant="outline" onClick={submit}>Save as Draft</Btn>
+          <Btn onClick={submit}>Add activity</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ================= activities / team panels ================= */
+
+function ActivityRow({ activity }) {
+  const memberName = MEMBER_POOL.find((m) => m.id === activity.assigneeId)?.name;
+  return (
+    <div className="border rounded px-4 py-3 flex items-center justify-between gap-3" style={{ borderColor: T.border, backgroundColor: T.light }}>
+      <div className="flex items-center gap-3 min-w-0">
+        <Calendar size={16} style={{ color: T.gray500 }} className="shrink-0" />
+        <div className="min-w-0">
+          <div className="text-[14px]">
+            <span style={{ color: T.gray600 }}>{activity.cadence} </span>
+            <span className="font-semibold" style={{ color: T.bodyText }}>{activity.title}</span>
+          </div>
+          {activity.link && <div className="text-[12px] underline" style={{ color: T.primary }}>{activity.link}</div>}
+          {memberName && <div className="text-[12px] mt-0.5" style={{ color: T.gray600 }}>Assigned to {memberName}</div>}
+        </div>
+      </div>
+      <Badge tone={activity.status === "required" ? "teal" : activity.status === "resolved" ? "green" : "gray"}>
+        {activity.status}
+      </Badge>
+    </div>
+  );
+}
+
+function ActivitiesPanel({ activities, onAdd }) {
+  const todo = activities.filter((a) => a.category === "todo");
+  const resolved = activities.filter((a) => a.category === "resolved");
+  return (
+    <div className="bg-white rounded border p-5" style={{ borderColor: T.border }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-1 font-bold text-[14px] tracking-wide" style={{ color: T.secondary }}>
+          ACTIVITIES <ChevronRight size={16} />
+        </div>
+        <button onClick={onAdd} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: T.primary }} aria-label="Add activity">
+          <Plus size={16} />
+        </button>
+      </div>
+      <div className="text-[13px] font-bold mb-2" style={{ color: T.bodyText }}>To do</div>
+      <div className="space-y-2">
+        {todo.map((a) => <ActivityRow key={a.id} activity={a} />)}
+        {todo.length === 0 && <div className="text-[13px]" style={{ color: T.gray600 }}>Nothing to do right now.</div>}
+      </div>
+      <div className="mt-5 mb-2 text-[13px] font-bold" style={{ color: T.bodyText }}>Resolved</div>
+      {resolved.length === 0 ? (
+        <div className="text-[13px]" style={{ color: T.gray600 }}>There are no resolved activities on your agenda.</div>
+      ) : (
+        <div className="space-y-2">
+          {resolved.map((a) => <ActivityRow key={a.id} activity={a} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamSummary({ team, onAddTeam }) {
+  const filled = team.filter((t) => t.memberId);
+  return (
+    <div className="bg-white rounded border p-5" style={{ borderColor: T.border }}>
+      <div className="flex items-center gap-1 font-bold text-[14px] tracking-wide mb-4" style={{ color: T.secondary }}>
+        TEAM <ChevronRight size={16} />
+      </div>
+      {filled.length === 0 ? (
+        <div className="border rounded p-4" style={{ borderColor: T.border, backgroundColor: T.light }}>
+          <div className="font-bold text-[14px] mb-1" style={{ color: T.bodyText }}>Please define the core team</div>
+          <div className="text-[13px] mb-3" style={{ color: T.gray600 }}>
+            Every plan needs a core team. Do so by clicking on the button below or go to the Team tab.
+          </div>
+          <Btn small variant="outline" onClick={onAddTeam}>Add team members</Btn>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filled.map((t) => {
+            const m = MEMBER_POOL.find((x) => x.id === t.memberId);
+            return (
+              <div key={t.id} className="flex items-center justify-between border rounded px-4 py-3 relative overflow-hidden" style={{ borderColor: T.border }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: T.primary }}>
+                    <User size={14} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-bold truncate" style={{ color: T.bodyText }}>{m.name}</div>
+                    <div className="text-[12px]" style={{ color: T.gray600 }}>{t.label}</div>
+                  </div>
+                </div>
+                {t.temporary && (
+                  <div className="absolute -right-8 top-1.5 rotate-45 text-[10px] font-bold px-8 py-0.5" style={{ backgroundColor: T.warning, color: "#fff" }}>
+                    Temporary
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RoleCard({ role, roleLabel, onOpenAssign }) {
+  const m = role?.memberId ? MEMBER_POOL.find((x) => x.id === role.memberId) : null;
+  return (
+    <div
+      className="w-64 border rounded p-6 flex flex-col items-center text-center relative overflow-hidden"
+      style={{
+        borderColor: m ? T.border : T.gray400,
+        borderStyle: m ? "solid" : "dashed",
+        backgroundColor: m ? "#fff" : T.light,
+      }}
+    >
+      {role?.temporary && (
+        <div className="absolute -right-8 top-2 rotate-45 text-[10px] font-bold px-8 py-0.5" style={{ backgroundColor: T.warning, color: "#fff" }}>
+          Temporary
+        </div>
+      )}
+      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: m ? T.primary : "#DCE3E8" }}>
+        <User size={22} color={m ? "#fff" : T.gray500} />
+      </div>
+      <div className="font-bold text-[14px] mb-0.5" style={{ color: T.bodyText }}>{m ? m.name : "Add additional roles"}</div>
+      <div className="text-[13px] mb-4" style={{ color: T.gray600 }}>{m ? role.label : "Please assign member a role"}</div>
+      <Btn small variant="outline" onClick={() => onOpenAssign(roleLabel)}>{m ? "Re-Assign member" : "Select a role"}</Btn>
+    </div>
+  );
+}
+
+function TeamTab({ team, onOpenAssign }) {
+  const mandatory = team.filter((t) => t.group === "mandatory");
+  const others = team.filter((t) => t.group === "others");
+  return (
+    <div className="bg-white rounded border p-6" style={{ borderColor: T.border }}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="font-bold text-[14px] tracking-wide" style={{ color: T.secondary }}>TEAM</div>
+        <button onClick={() => onOpenAssign(null)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: T.primary }} aria-label="Add role">
+          <Plus size={16} />
+        </button>
+      </div>
+      <div className="text-[13px] font-bold mb-3" style={{ color: T.bodyText }}>Mandatory</div>
+      <div className="flex gap-6 mb-8 flex-wrap">
+        {mandatory.map((r) => <RoleCard key={r.id} role={r} roleLabel={r.label} onOpenAssign={onOpenAssign} />)}
+      </div>
+      <div className="text-[13px] font-bold mb-3" style={{ color: T.bodyText }}>Others</div>
+      <div className="flex gap-6 flex-wrap">
+        {others.map((r) => <RoleCard key={r.id} role={r} roleLabel={r.label} onOpenAssign={onOpenAssign} />)}
+        <RoleCard role={null} roleLabel={null} onOpenAssign={onOpenAssign} />
+      </div>
+    </div>
+  );
+}
+
+function StubCard({ title, desc, cta }) {
+  return (
+    <div className="bg-white rounded border p-5" style={{ borderColor: T.border }}>
+      <div className="font-bold text-[14px] tracking-wide mb-3" style={{ color: T.secondary }}>{title}</div>
+      <div className="border rounded p-4" style={{ borderColor: T.border, backgroundColor: T.light }}>
+        <div className="font-bold text-[14px] mb-1" style={{ color: T.bodyText }}>{desc}</div>
+        <div className="text-[12px] mb-3" style={{ color: T.gray600 }}>Not wired in this prototype.</div>
+        <Btn small variant="outline" disabled>{cta}</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* ================= caremap detail ================= */
+
+const TABS = ["Overview", "PZP", "Questionnaires", "Activities", "Comments", "Team", "Messages"];
+
+function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddActivity }) {
+  const [tab, setTab] = useState("overview");
+
+  return (
+    <div className="flex h-screen overflow-hidden" style={{ fontFamily: T.fontFamily }}>
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0">
+        <TopHeader />
+        <PatientBar back={back} />
+        <div className="flex-1 overflow-y-auto" style={{ backgroundColor: T.light }}>
+          <div className="px-8 pt-6 flex items-start justify-between gap-6">
+            <div>
+              <div className="text-[24px] font-bold" style={{ color: T.bodyText }}>{caremap.title}</div>
+              <div className="text-[14px] mt-1" style={{ color: T.gray600 }}>{caremap.careFocus}</div>
+            </div>
+            {caremap.status === "draft" ? (
+              <Btn variant="green" onClick={onOpenSetPlan}>Set plan and activate</Btn>
+            ) : (
+              <Btn variant="outline" onClick={onOpenSetPlan}>View plan settings</Btn>
+            )}
+          </div>
+
+          <div className="px-8 mt-5 flex gap-8 border-b" style={{ borderColor: T.border }}>
+            {TABS.map((t) => {
+              const key = t.toLowerCase();
+              const active = key === tab;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTab(key)}
+                  className="relative pb-3 text-[14px]"
+                  style={{ color: active ? T.primary : T.gray700, fontWeight: active ? 700 : 400 }}
+                >
+                  {t}
+                  {active && (
+                    <motion.span layoutId="caremap-tab-underline" className="absolute left-0 right-0 bottom-0 h-[3px]" style={{ backgroundColor: T.primary }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-8">
+            {caremap.status === "active" && (
+              <div className="bg-white rounded border px-5 py-3 flex gap-10 mb-5 text-[14px]" style={{ borderColor: T.border }}>
+                <div><span style={{ color: T.gray600 }}>Status&nbsp;&nbsp;</span><Badge tone="green">Active</Badge></div>
+                <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.startDate}</span></div>
+                <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.estimatedStartDate}</span></div>
+              </div>
+            )}
+
+            {(tab === "overview" || tab === "activities") && (
+              <div className="grid grid-cols-3 gap-6 items-start">
+                <div className="col-span-2">
+                  <ActivitiesPanel activities={caremap.activities} onAdd={onOpenAddActivity} />
+                </div>
+                <div className="space-y-6">
+                  <TeamSummary team={caremap.team} onAddTeam={() => onOpenAssign("Case manager")} />
+                  <StubCard title="CLINICAL CONSULTANT" desc="Please add clinical consultant's details" cta="Add clinical consultant" />
+                  <StubCard title="EMERGENCY CONTACT" desc="Add any emergency contacts if needed" cta="Add emergency contact" />
+                  <StubCard title="ADDITIONAL INFORMATION" desc="Patient-related information" cta="Add additional information" />
+                </div>
+              </div>
+            )}
+
+            {tab === "team" && <TeamTab team={caremap.team} onOpenAssign={onOpenAssign} />}
+
+            {["pzp", "questionnaires", "comments", "messages"].includes(tab) && (
+              <div className="bg-white rounded border p-12 text-center text-[14px]" style={{ borderColor: T.border, color: T.gray600 }}>
+                Not part of this prototype — mocked for the flow described in the brief.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= root app ================= */
+
+export default function CaremapsPrototype() {
+  const [screen, setScreen] = useState("start");
+  const [caremap, setCaremap] = useState(null);
+  const [modal, setModal] = useState(null); // 'create' | 'setPlan' | 'assign' | 'addActivity'
+  const [assignFixedRole, setAssignFixedRole] = useState(null);
+
+  const createCaremap = (unit, template) => {
+    setCaremap({
+      unit,
+      template,
+      title: `${template} Caremap`,
+      careFocus: "Care focus: Quality of life and symptom management, alongside ongoing medical follow-up",
+      status: "draft",
+      startDate: null,
+      estimatedStartDate: null,
+      activities: initialActivities(),
+      team: [{ id: "t-case-manager", label: "Case manager", group: "mandatory", memberId: null, temporary: false }],
+    });
+    setModal(null);
+    setScreen("detail");
+  };
+
+  const activatePlan = (date) => {
+    setCaremap((c) => {
+      const start = formatDMY(date);
+      const estimated = `${addMonthsDMY(date, 2)} (Estimated)`;
+      return { ...c, status: "active", startDate: start, estimatedStartDate: estimated };
+    });
+  };
+
+  const openAssign = (roleLabel) => {
+    setAssignFixedRole(roleLabel);
+    setModal("assign");
+  };
+
+  const handleAssign = (roleLabel, memberId) => {
+    setCaremap((c) => {
+      const existing = c.team.find((t) => t.label === roleLabel);
+      let team;
+      if (existing) {
+        team = c.team.map((t) => (t.id === existing.id ? { ...t, memberId, temporary: t.group === "mandatory" } : t));
+      } else {
+        team = [
+          ...c.team,
+          { id: `t-${Date.now()}`, label: roleLabel, group: roleLabel === "Case manager" ? "mandatory" : "others", memberId, temporary: roleLabel === "Case manager" },
+        ];
+      }
+
+      let activities = c.activities;
+      if (roleLabel === "Case manager") {
+        activities = c.activities.map((a) =>
+          a.id === "a1" ? { ...a, status: "resolved", category: "resolved" } : a
+        );
+      }
+
+      return { ...c, team, activities };
+    });
+    setModal(null);
+  };
+
+  const addActivity = (form) => {
+    setCaremap((c) => ({
+      ...c,
+      activities: [
+        ...c.activities,
+        {
+          id: `a-${Date.now()}`,
+          title: form.type,
+          cadence: "(1/1)",
+          status: form.status.toLowerCase(),
+          category: "todo",
+          assigneeId: form.assignee || null,
+          comment: form.comment,
+          provider: form.provider,
+        },
+      ],
+    }));
+  };
+
+  return (
+    <div style={{ fontFamily: T.fontFamily }}>
+      {screen === "start" && (
+        <HISShell hasCaremap={!!caremap} onCreate={() => setModal("create")} onOpen={() => setScreen("detail")} />
+      )}
+      {screen === "detail" && caremap && (
+        <CaremapDetail
+          caremap={caremap}
+          back={() => setScreen("start")}
+          onOpenSetPlan={() => setModal("setPlan")}
+          onOpenAssign={openAssign}
+          onOpenAddActivity={() => setModal("addActivity")}
+        />
+      )}
+
+      {modal === "create" && <CreateCaremapModal onClose={() => setModal(null)} onCreate={createCaremap} />}
+      {modal === "setPlan" && caremap && (
+        <SetPlanModal caremap={caremap} onClose={() => setModal(null)} onActivate={activatePlan} onSaveDraft={() => {}} />
+      )}
+      {modal === "assign" && (
+        <AssignRoleModal fixedRole={assignFixedRole} onClose={() => setModal(null)} onAssign={handleAssign} />
+      )}
+      {modal === "addActivity" && caremap && (
+        <AddActivityModal onClose={() => setModal(null)} onAdd={addActivity} team={caremap.team} />
+      )}
+    </div>
+  );
+}
