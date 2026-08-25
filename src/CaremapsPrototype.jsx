@@ -47,7 +47,17 @@ const MEMBER_POOL = [
   { id: "m8", name: "Mary Brown", jobTitle: "Community Nurse", org: "Regional Homecare", email: "mary.brown@homecare.nl" },
   { id: "m9", name: "Mike Myers", jobTitle: "Physiotherapist", org: "UMC Utrecht - Physiotherapy", email: "mmyers@umcu.nl" },
   { id: "m10", name: "Dr. Mark Southerland", jobTitle: "GP", org: "Huisartsenpraktijk Zuid", email: "msoutherland@gp.nl" },
+  { id: "m11", name: "Sanne de Groot", jobTitle: "Physiotherapist", org: "UMC Utrecht - Physiotherapy", email: "sdegroot@umcu.nl" },
+  { id: "m12", name: "James Wilson", jobTitle: "Community Nurse", org: "Regional Homecare", email: "james.wilson@homecare.nl" },
+  { id: "m13", name: "Anna de Boer", jobTitle: "GP", org: "Huisartsenpraktijk Zuid", email: "adeboer@gp.nl" },
 ];
+
+// Each provider's own staff, used to populate "Assign to" once a provider
+// is selected on an activity — assigning is about who at that provider
+// does the work, not who's on the caremap's core team.
+function staffForProvider(provider) {
+  return MEMBER_POOL.filter((m) => m.org === provider);
+}
 
 const ROLE_POOL = ["Community nurse", "Oncologist", "Physiotherapist", "GP", "Social worker", "Spiritual counsellor"];
 
@@ -719,25 +729,22 @@ function StatusFields({ status, setStatus, fields, setField, locked }) {
   );
 }
 
-function AssignToField({ assignee, setAssignee, team }) {
-  const filledTeam = team.filter((t) => t.memberId);
+function AssignToField({ assignee, setAssignee, provider }) {
+  const staff = staffForProvider(provider);
   return (
     <Field label="Assign to">
-      <Select style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+      <Select style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={!provider}>
         <option value="">Unassigned</option>
-        {filledTeam.map((t) => {
-          const m = MEMBER_POOL.find((x) => x.id === t.memberId);
-          return <option key={t.id} value={m.id}>{m.name} ({t.label})</option>;
-        })}
+        {staff.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.jobTitle})</option>)}
       </Select>
-      {filledTeam.length === 0 && (
-        <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>Add team members first to be able to assign this activity to someone.</div>
+      {!provider && (
+        <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>Select a provider first to see who's available to assign.</div>
       )}
     </Field>
   );
 }
 
-function AddActivityModal({ onClose, onAdd, team }) {
+function AddActivityModal({ onClose, onAdd }) {
   const [type, setType] = useState("");
   const [provider, setProvider] = useState("");
   const [status, setStatus] = useState("");
@@ -767,13 +774,17 @@ function AddActivityModal({ onClose, onAdd, team }) {
           <StatusFields status={status} setStatus={setStatus} fields={fields} setField={setField} />
 
           <Field label="Select provider" required>
-            <Select style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
+            <Select
+              style={selectStyle}
+              value={provider}
+              onChange={(e) => { setProvider(e.target.value); setAssignee(""); }}
+            >
               <option value="" disabled>Please select</option>
               {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
             </Select>
           </Field>
 
-          <AssignToField assignee={assignee} setAssignee={setAssignee} team={team} />
+          <AssignToField assignee={assignee} setAssignee={setAssignee} provider={provider} />
 
           <Field label="Write your comment" required>
             <textarea
@@ -800,7 +811,7 @@ function AddActivityModal({ onClose, onAdd, team }) {
 
 const STATUS_FIELD_KEYS = ["requiredMonth", "planningMonth", "scheduledDate", "hour", "location", "completedDate", "declinedDate", "cancelledDate"];
 
-function EditActivityModal({ activity, team, onClose, onSave }) {
+function EditActivityModal({ activity, onClose, onSave }) {
   const [status, setStatus] = useState(activity.status);
   const [fields, setFields] = useState(() => {
     const f = {};
@@ -828,13 +839,17 @@ function EditActivityModal({ activity, team, onClose, onSave }) {
       <StatusFields status={status} setStatus={setStatus} fields={fields} setField={setField} />
 
       <Field label="Select provider">
-        <Select style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
+        <Select
+          style={selectStyle}
+          value={provider}
+          onChange={(e) => { setProvider(e.target.value); setAssignee(""); }}
+        >
           <option value="">Unspecified</option>
           {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
         </Select>
       </Field>
 
-      <AssignToField assignee={assignee} setAssignee={setAssignee} team={team} />
+      <AssignToField assignee={assignee} setAssignee={setAssignee} provider={provider} />
 
       <Field label="Write your comment">
         <textarea
@@ -1319,12 +1334,11 @@ export default function CaremapsPrototype() {
         <AssignRoleModal fixedRole={assignFixedRole} onClose={() => setModal(null)} onAssign={handleAssign} />
       )}
       {modal === "addActivity" && caremap && (
-        <AddActivityModal onClose={() => setModal(null)} onAdd={addActivity} team={caremap.team} />
+        <AddActivityModal onClose={() => setModal(null)} onAdd={addActivity} />
       )}
       {modal === "editActivity" && caremap && editingActivity && (
         <EditActivityModal
           activity={editingActivity}
-          team={caremap.team}
           onClose={() => setModal(null)}
           onSave={(patch) => updateActivity(editingActivity.id, patch)}
         />
