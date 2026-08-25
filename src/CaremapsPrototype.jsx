@@ -48,26 +48,61 @@ const PROVIDERS = ["UMC Utrecht - Physiotherapy", "Regional Homecare", "St. Anto
 const CARE_UNITS = ["Palliative Care", "Oncology Care", "Chronic Disease Management"];
 const TEMPLATES = ["End of life care", "Symptom management", "Bereavement support"];
 
-function initialActivities() {
-  return [
-    { id: "a1", title: "Assign Case manager", cadence: "(1/1)", status: "required", mandatory: true, category: "todo" },
-    { id: "a2", title: "Treatment summary appointment", cadence: "(1/1)", status: "undefined", category: "todo" },
-    { id: "a3", title: "Mammography", cadence: "(1/1)", status: "undefined", category: "todo" },
-    { id: "a4", title: "Virtual follow-up review", cadence: "(1/5)", status: "undefined", category: "todo" },
-    { id: "a5", title: "Virtual follow-up review", cadence: "(AD HOC)", status: "undefined", category: "todo" },
-    { id: "a6", title: "Questionnaire", cadence: "(1/5)", status: "undefined", category: "todo", link: "Breast cancer questionnaire" },
-    { id: "a7", title: "HNA questionnaire", cadence: "(1/5)", status: "undefined", category: "todo", link: "Holistic Needs Assessment" },
-  ];
+// The mandatory/optional activities offered in "Set plan and activate caremap"
+// (Figma node 12527-337029). This is the single source of truth for the
+// caremap's default plan — the Overview's "To do" list (node 12526-335476)
+// is generated from these items + the toggle choices made in that modal,
+// rather than a separate hardcoded activity list.
+const SET_PLAN_ITEMS = [
+  { id: "sp1", label: "Assign Case manager", assignee: "Unassigned", sub: "At activation", cadence: "(1/1)", toggle: false },
+  { id: "sp2", label: "Initial PZP conversation", assignee: "Case manager", sub: "Due: 2 days", cadence: "(1/1)", toggle: false },
+  { id: "sp3", label: "Record patient goals and whishes", assignee: "Unassigned", sub: "Due: 1 week", cadence: "(1/1)", toggle: false },
+  { id: "sp4", label: "Record treatment wishes", assignee: "Unassigned", sub: "Due: 2 weeks", cadence: "(1/1)", toggle: false },
+  { id: "sp5", label: "Record emergency records", assignee: "Unassigned", sub: "Due: 1 week", cadence: "(1/5)", toggle: true, defaultOn: true },
+  { id: "sp6", label: "Review PZP and existing advance directive", assignee: "Unassigned", sub: "Every 3 weeks", cadence: "(1/5)", toggle: true, defaultOn: false },
+];
+
+const PLAN_ITEM_IDS = new Set(SET_PLAN_ITEMS.map((i) => i.id));
+const CASE_MANAGER_ACTIVITY_ID = "sp1";
+
+function defaultPlanToggles() {
+  const t = {};
+  SET_PLAN_ITEMS.forEach((i) => { if (i.toggle) t[i.id] = i.defaultOn; });
+  return t;
 }
 
-const SET_PLAN_ITEMS = [
-  { id: "sp1", label: "Assign Case manager", right: "On time", sub: "At activation", toggle: false },
-  { id: "sp2", label: "Initial PZP conversation", right: "Case Manager", sub: "Due: 1 week", toggle: false },
-  { id: "sp3", label: "Record patient goals and whishes", right: "Mandatory", sub: "Due: 2 weeks", toggle: false },
-  { id: "sp4", label: "Record treatment wishes", right: "Mandatory", sub: "5 times, 1 a year", toggle: false },
-  { id: "sp5", label: "Record emergency contacts", sub: "5 times, 1 a year", toggle: true, defaultOn: true },
-  { id: "sp6", label: "Review PZP and existing advance directive", sub: "Every 4 weeks", toggle: true, defaultOn: true },
-];
+// Builds/refreshes the "To do" activity list from the plan items + current
+// toggle choices, preserving status on any item that already existed (e.g.
+// "Assign Case manager" already resolved) and keeping any custom activities
+// added via "Add new activity" untouched.
+function mergePlanIntoActivities(existingActivities, toggles) {
+  const custom = existingActivities.filter((a) => !PLAN_ITEM_IDS.has(a.id));
+  const planItems = SET_PLAN_ITEMS.filter((item) => !item.toggle || toggles[item.id]).map((item) => {
+    const prior = existingActivities.find((a) => a.id === item.id);
+    return (
+      prior || {
+        id: item.id,
+        title: item.label,
+        cadence: item.cadence,
+        status: "undefined",
+        mandatory: !item.toggle,
+        category: "todo",
+      }
+    );
+  });
+  return [...planItems, ...custom];
+}
+
+// Keeps the "Assign Case manager" to-do item in sync with whether the Case
+// Manager role actually has a member assigned yet.
+function syncCaseManagerActivity(activities, team) {
+  const hasCaseManager = !!team.find((t) => t.label === "Case manager")?.memberId;
+  return activities.map((a) =>
+    a.id === CASE_MANAGER_ACTIVITY_ID && hasCaseManager
+      ? { ...a, status: "resolved", category: "resolved" }
+      : a
+  );
+}
 
 function formatDMY(iso) {
   const d = new Date(`${iso}T00:00:00`);
@@ -425,11 +460,7 @@ function CreateCaremapModal({ onClose, onCreate }) {
 }
 
 function SetPlanModal({ caremap, onClose, onActivate, onSaveDraft }) {
-  const [toggles, setToggles] = useState(() => {
-    const t = {};
-    SET_PLAN_ITEMS.forEach((i) => { if (i.toggle) t[i.id] = i.defaultOn; });
-    return t;
-  });
+  const [toggles, setToggles] = useState(() => caremap.planToggles || defaultPlanToggles());
   const [date, setDate] = useState("2026-08-12");
   const locked = caremap.status === "active";
 
@@ -446,9 +477,12 @@ function SetPlanModal({ caremap, onClose, onActivate, onSaveDraft }) {
       <div className="space-y-2 mb-6">
         {SET_PLAN_ITEMS.map((item) => (
           <div key={item.id} className="flex items-center justify-between border rounded px-4 py-3" style={{ borderColor: T.border, backgroundColor: T.light }}>
-            <div className="flex items-center gap-3">
-              <Calendar size={16} style={{ color: T.primary }} />
-              <span className="text-[14px] font-semibold" style={{ color: T.bodyText }}>{item.label}</span>
+            <div className="flex items-start gap-3">
+              <Calendar size={16} style={{ color: T.primary }} className="mt-0.5" />
+              <div>
+                <div className="text-[14px] font-semibold" style={{ color: T.bodyText }}>{item.label}</div>
+                <div className="text-[13px]" style={{ color: T.gray600 }}>{item.assignee}</div>
+              </div>
             </div>
             {item.toggle ? (
               <div className="text-right">
@@ -457,7 +491,7 @@ function SetPlanModal({ caremap, onClose, onActivate, onSaveDraft }) {
               </div>
             ) : (
               <div className="text-right">
-                <div className="text-[14px] font-semibold" style={{ color: T.bodyText }}>{item.right}</div>
+                <div className="text-[14px] font-semibold" style={{ color: T.bodyText }}>Mandatory</div>
                 <div className="text-[12px]" style={{ color: T.gray600 }}>{item.sub}</div>
               </div>
             )}
@@ -483,8 +517,8 @@ function SetPlanModal({ caremap, onClose, onActivate, onSaveDraft }) {
         <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
         {!locked && (
           <div className="flex gap-3">
-            <Btn variant="outline" onClick={() => { onSaveDraft(); onClose(); }}>Save as Draft</Btn>
-            <Btn onClick={() => { onActivate(date); onClose(); }}>Activate caremap</Btn>
+            <Btn variant="outline" onClick={() => { onSaveDraft(toggles); onClose(); }}>Save as Draft</Btn>
+            <Btn onClick={() => { onActivate(date, toggles); onClose(); }}>Activate caremap</Btn>
           </div>
         )}
       </div>
@@ -656,9 +690,11 @@ function ActivityRow({ activity }) {
   );
 }
 
-function ActivitiesPanel({ activities, onAdd }) {
+function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan }) {
   const todo = activities.filter((a) => a.category === "todo");
   const resolved = activities.filter((a) => a.category === "resolved");
+  const nothingYet = !planConfigured && activities.length === 0;
+
   return (
     <div className="bg-white rounded border p-5" style={{ borderColor: T.border }}>
       <div className="flex items-center justify-between mb-4">
@@ -669,11 +705,25 @@ function ActivitiesPanel({ activities, onAdd }) {
           <Plus size={16} />
         </button>
       </div>
-      <div className="text-[13px] font-bold mb-2" style={{ color: T.bodyText }}>To do</div>
-      <div className="space-y-2">
-        {todo.map((a) => <ActivityRow key={a.id} activity={a} />)}
-        {todo.length === 0 && <div className="text-[13px]" style={{ color: T.gray600 }}>Nothing to do right now.</div>}
-      </div>
+
+      {nothingYet ? (
+        <div className="text-[14px] leading-relaxed mb-2" style={{ color: T.gray600 }}>
+          It looks like you haven't added any active tasks, to do so please configure a care plan by clicking on{" "}
+          <button onClick={onOpenSetPlan} className="font-semibold underline" style={{ color: T.primary }}>
+            Set plan and activate
+          </button>{" "}
+          button.
+        </div>
+      ) : (
+        <>
+          <div className="text-[13px] font-bold mb-2" style={{ color: T.bodyText }}>To do</div>
+          <div className="space-y-2">
+            {todo.map((a) => <ActivityRow key={a.id} activity={a} />)}
+            {todo.length === 0 && <div className="text-[13px]" style={{ color: T.gray600 }}>Nothing to do right now.</div>}
+          </div>
+        </>
+      )}
+
       <div className="mt-5 mb-2 text-[13px] font-bold" style={{ color: T.bodyText }}>Resolved</div>
       {resolved.length === 0 ? (
         <div className="text-[13px]" style={{ color: T.gray600 }}>There are no resolved activities on your agenda.</div>
@@ -840,18 +890,27 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
           </div>
 
           <div className="p-8">
-            {caremap.status === "active" && (
-              <div className="bg-white rounded border px-5 py-3 flex gap-10 mb-5 text-[14px]" style={{ borderColor: T.border }}>
-                <div><span style={{ color: T.gray600 }}>Status&nbsp;&nbsp;</span><Badge tone="green">Active</Badge></div>
-                <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.startDate}</span></div>
-                <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.estimatedStartDate}</span></div>
-              </div>
-            )}
+            <div className="bg-white rounded border px-5 py-3 flex gap-10 mb-5 text-[14px]" style={{ borderColor: T.border }}>
+              {caremap.status === "active" ? (
+                <>
+                  <div><span style={{ color: T.gray600 }}>Status&nbsp;&nbsp;</span><Badge tone="green">Active</Badge></div>
+                  <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.startDate}</span></div>
+                  <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.estimatedStartDate}</span></div>
+                </>
+              ) : (
+                <div><span style={{ color: T.gray600 }}>Status&nbsp;&nbsp;</span><Badge tone="gray">Draft</Badge></div>
+              )}
+            </div>
 
             {(tab === "overview" || tab === "activities") && (
               <div className="grid grid-cols-3 gap-6 items-start">
                 <div className="col-span-2">
-                  <ActivitiesPanel activities={caremap.activities} onAdd={onOpenAddActivity} />
+                  <ActivitiesPanel
+                    activities={caremap.activities}
+                    planConfigured={caremap.planConfigured}
+                    onAdd={onOpenAddActivity}
+                    onOpenSetPlan={onOpenSetPlan}
+                  />
                 </div>
                 <div className="space-y-6">
                   <TeamSummary team={caremap.team} onAddTeam={() => onOpenAssign("Case manager")} />
@@ -893,18 +952,40 @@ export default function CaremapsPrototype() {
       status: "draft",
       startDate: null,
       estimatedStartDate: null,
-      activities: initialActivities(),
+      planConfigured: false,
+      planToggles: defaultPlanToggles(),
+      activities: [],
       team: [{ id: "t-case-manager", label: "Case manager", group: "mandatory", memberId: null, temporary: false }],
     });
     setModal(null);
     setScreen("detail");
   };
 
-  const activatePlan = (date) => {
+  // "Save as Draft" and "Activate caremap" both apply the plan's mandatory +
+  // toggled-on items to the Overview's activity list — this is what keeps
+  // the Set Plan settings and the Overview in sync.
+  const saveDraft = (toggles) => {
+    setCaremap((c) => ({
+      ...c,
+      planConfigured: true,
+      planToggles: toggles,
+      activities: syncCaseManagerActivity(mergePlanIntoActivities(c.activities, toggles), c.team),
+    }));
+  };
+
+  const activatePlan = (date, toggles) => {
     setCaremap((c) => {
       const start = formatDMY(date);
       const estimated = `${addMonthsDMY(date, 2)} (Estimated)`;
-      return { ...c, status: "active", startDate: start, estimatedStartDate: estimated };
+      return {
+        ...c,
+        status: "active",
+        startDate: start,
+        estimatedStartDate: estimated,
+        planConfigured: true,
+        planToggles: toggles,
+        activities: syncCaseManagerActivity(mergePlanIntoActivities(c.activities, toggles), c.team),
+      };
     });
   };
 
@@ -926,12 +1007,7 @@ export default function CaremapsPrototype() {
         ];
       }
 
-      let activities = c.activities;
-      if (roleLabel === "Case manager") {
-        activities = c.activities.map((a) =>
-          a.id === "a1" ? { ...a, status: "resolved", category: "resolved" } : a
-        );
-      }
+      const activities = syncCaseManagerActivity(c.activities, team);
 
       return { ...c, team, activities };
     });
@@ -974,7 +1050,7 @@ export default function CaremapsPrototype() {
 
       {modal === "create" && <CreateCaremapModal onClose={() => setModal(null)} onCreate={createCaremap} />}
       {modal === "setPlan" && caremap && (
-        <SetPlanModal caremap={caremap} onClose={() => setModal(null)} onActivate={activatePlan} onSaveDraft={() => {}} />
+        <SetPlanModal caremap={caremap} onClose={() => setModal(null)} onActivate={activatePlan} onSaveDraft={saveDraft} />
       )}
       {modal === "assign" && (
         <AssignRoleModal fixedRole={assignFixedRole} onClose={() => setModal(null)} onAssign={handleAssign} />
