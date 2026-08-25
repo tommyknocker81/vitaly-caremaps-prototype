@@ -6,9 +6,12 @@ import {
   Plus, X, Search, Calendar, ClipboardCheck, ClipboardList, UsersRound, FileStack,
   CheckCircle2, XCircle, UserX,
 } from "lucide-react";
+import vitalyLogo from "./assets/vitaly-logo.png";
 
 // Vitaly RSO design tokens (Figma: OpenLine-Vitaly) — shared with the
 // encounters and documents prototypes so all three read as one product.
+// Card/row/typography values below are pulled directly from the Caremaps
+// Overview dev-mode node (12535-358444) rather than approximated.
 const T = {
   primary: "#0080A3",
   secondary: "#00324B",
@@ -23,7 +26,12 @@ const T = {
   gray400: "#CED4DA",
   lightBg: "#E9ECEF",
   light: "#F7F8FA",
+  cardBg: "#F8F9FA",
+  teamItemBorder: "#DCDCDC",
+  muted: "#555555",
+  black: "#000000",
   fontFamily: "'Source Sans 3', 'Source Sans Pro', system-ui, sans-serif",
+  cardShadow: "0 1px 2px rgba(0,0,0,0.2)",
 };
 
 /* ================= mock data ================= */
@@ -150,21 +158,24 @@ function formatFieldValue(type, value) {
 
 function Badge({ children, tone = "gray" }) {
   const tones = {
-    gray: { backgroundColor: "#5B6774", color: "#fff" },
+    gray: { backgroundColor: T.gray600, color: "#fff" },
     teal: { backgroundColor: T.primary, color: "#fff" },
     green: { backgroundColor: T.success, color: "#fff" },
     warning: { backgroundColor: T.warning, color: "#fff" },
   };
   return (
-    <span className="px-2.5 py-1 rounded text-[11px] font-bold tracking-wide uppercase shrink-0" style={tones[tone]}>
+    <span
+      className="px-[8px] py-[4px] rounded-full text-[12px] font-bold tracking-[1px] uppercase shrink-0"
+      style={tones[tone]}
+    >
       {children}
     </span>
   );
 }
 
 function Btn({ children, onClick, variant = "solid", small, disabled, className = "", type = "button" }) {
-  const base = "rounded font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5 whitespace-nowrap";
-  const size = small ? "px-3.5 py-1.5 text-[13px]" : "px-4 py-2 text-[14px]";
+  const base = "rounded-[4px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 whitespace-nowrap";
+  const size = small ? "px-3.5 py-1.5 text-[14px]" : "px-[13px] py-[7px] text-[15px]";
   const variants = {
     solid: { backgroundColor: T.primary, color: "#fff" },
     green: { backgroundColor: T.success, color: "#fff" },
@@ -197,7 +208,7 @@ function Modal({ title, onClose, children, width = 640 }) {
 function Field({ label, children, required }) {
   return (
     <div className="mb-4">
-      <label className="block text-[13px] font-semibold mb-1.5" style={{ color: T.bodyText }}>
+      <label className="block text-[15px] font-semibold mb-1.5" style={{ color: T.black }}>
         {label} {required && <span style={{ color: "#DC5B5B" }}>*</span>}
       </label>
       {children}
@@ -205,7 +216,7 @@ function Field({ label, children, required }) {
   );
 }
 
-const selectCls = "w-full border rounded px-3 py-2 text-[14px] bg-white outline-none focus:ring-1";
+const selectCls = "w-full border rounded-[4px] px-3 py-2 text-[15px] bg-white outline-none focus:ring-1";
 const selectStyle = { borderColor: T.gray400, color: T.bodyText };
 
 function ToggleField({ on, onChange }) {
@@ -244,34 +255,25 @@ const NAV_ITEMS = [
 function Sidebar() {
   return (
     <div className="w-64 shrink-0 flex flex-col text-white" style={{ backgroundColor: T.secondary }}>
-      <div className="h-[88px] flex items-center gap-3 px-5" style={{ backgroundColor: T.secondary }}>
-        <svg width="34" height="34" viewBox="0 0 32 32" fill="#17A3C6">
-          <path d="M4 1H28L21 9H11L4 1Z" />
-          <path d="M31 4V28L23 21V11L31 4Z" />
-          <path d="M28 31H4L11 23H21L28 31Z" />
-          <path d="M1 4L9 11V21L1 28V4Z" />
-        </svg>
-        <div className="leading-none">
-          <div className="text-[9px] tracking-[0.25em] font-semibold">OPEN<span className="font-normal opacity-80">LINE</span></div>
-          <div className="text-[19px] font-bold tracking-[0.08em] mt-0.5">VITALY</div>
-        </div>
+      <div className="flex items-center pt-6 px-4 pb-12">
+        <img src={vitalyLogo} alt="OpenLine Vitaly" className="h-9 w-auto" />
       </div>
-      <nav className="flex-1 py-2">
+      <nav className="flex-1">
         {NAV_ITEMS.map(({ icon: Icon, label, active }) => (
           <button
             key={label}
-            className="w-full flex items-center gap-3 px-5 py-2.5 text-[14px] text-left transition-colors hover:bg-white/10"
-            style={active ? { backgroundColor: T.primary } : undefined}
+            className="w-full h-12 flex items-center gap-4 px-4 text-[15px] text-left transition-colors hover:bg-white/10"
+            style={active ? { backgroundColor: T.primary, color: "#fff", fontWeight: 600 } : { color: "rgba(255,255,255,0.8)" }}
           >
-            <Icon size={17} className="shrink-0" /> {label}
+            <Icon size={20} className="shrink-0" /> {label}
           </button>
         ))}
       </nav>
-      <button className="w-full flex items-center gap-3 px-5 py-3 text-[14px] text-left hover:bg-white/10">
-        <History size={17} /> Last view patients
+      <button className="w-full h-12 flex items-center gap-4 px-4 text-[15px] text-left hover:bg-white/10" style={{ color: "rgba(255,255,255,0.8)" }}>
+        <History size={20} /> Last view patients
       </button>
-      <button className="w-full flex items-center gap-3 px-5 py-3.5 text-[14px] text-left hover:bg-white/10" style={{ backgroundColor: T.dark }}>
-        <ChevronsLeft size={17} /> Collapse menu
+      <button className="w-full h-12 flex items-center gap-4 px-4 text-[15px] text-left hover:bg-white/10" style={{ backgroundColor: T.dark }}>
+        <ChevronsLeft size={20} /> Collapse menu
       </button>
     </div>
   );
@@ -279,25 +281,36 @@ function Sidebar() {
 
 function TopHeader() {
   return (
-    <div className="flex items-center justify-between pl-8 pr-6 py-2.5 bg-white border-b" style={{ borderColor: T.border }}>
-      <div className="flex items-center gap-2.5">
-        <h1 className="text-[24px] font-semibold leading-tight" style={{ color: T.bodyText }}>Patients</h1>
-        <button className="w-6 h-6 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: T.primary }} aria-label="Add patient">
-          <Plus size={15} />
+    <div className="flex items-center justify-between px-8 py-4 bg-white border-b" style={{ borderColor: T.border }}>
+      <div className="flex items-center gap-2">
+        <h1 className="text-[24px] font-semibold leading-[1.2]" style={{ color: T.black }}>Patients</h1>
+        <button aria-label="Add patient">
+          <Plus size={24} style={{ color: T.primary }} />
         </button>
       </div>
-      <div className="flex items-center gap-4">
-        <Star size={19} fill={T.primary} style={{ color: T.primary }} />
-        <span className="relative">
-          <Bell size={19} style={{ color: T.primary }} />
-          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+      <div className="flex items-center gap-9">
+        <span
+          className="w-12 h-6 rounded-full flex items-center px-[3px] bg-white border-[1.5px]"
+          style={{ borderColor: "rgba(0,0,0,0.25)" }}
+          aria-hidden
+        >
+          <span className="w-[18px] h-[18px] rounded-full" style={{ backgroundColor: T.gray400 }} />
         </span>
+        <div className="flex items-center gap-4">
+          <Star size={24} fill={T.primary} style={{ color: T.primary }} />
+          <span className="relative">
+            <Bell size={24} style={{ color: T.primary }} />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+          </span>
+        </div>
         <span className="w-px h-6" style={{ backgroundColor: T.border }} />
-        <span className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: "#DCEEF3" }}>
-          <User size={18} style={{ color: T.primary }} />
-        </span>
-        <span className="text-[15px] font-semibold" style={{ color: T.bodyText }}>Dr. HENLEY, Maria</span>
-        <ChevronDown size={16} style={{ color: T.primary }} />
+        <div className="flex items-center gap-3">
+          <span className="w-8 h-8 rounded-full flex items-center justify-center p-1" style={{ backgroundColor: T.lightBg }}>
+            <User size={24} style={{ color: T.gray700 }} />
+          </span>
+          <span className="text-[15px] font-semibold whitespace-nowrap" style={{ color: T.bodyText }}>Dr. HENLEY, Maria</span>
+          <ChevronDown size={24} style={{ color: T.gray700 }} />
+        </div>
       </div>
     </div>
   );
@@ -307,27 +320,29 @@ const PATIENT_TABS = ["PX360", "CONTACTS", "DOCUMENTS", "REFERRAL", "CAREMAPS"];
 
 function PatientBar({ back }) {
   return (
-    <div className="flex items-stretch border-b bg-white" style={{ borderColor: T.border }}>
-      <button onClick={back} className="flex items-center px-3 border-r" style={{ borderColor: T.border }} aria-label="Back">
-        <ChevronLeft size={18} style={{ color: T.primary }} />
+    <div className="flex items-stretch border-b bg-white min-h-[94px]" style={{ borderColor: T.border }}>
+      <button onClick={back} className="flex items-center px-1" aria-label="Back">
+        <ChevronLeft size={24} style={{ color: T.primary }} />
       </button>
-      <div className="flex items-center gap-3 px-4 py-3 border-r" style={{ borderColor: T.border }}>
-        <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: "#DCEEF3" }}>
-          <User size={26} style={{ color: T.primary }} />
+      <div className="flex items-center gap-3 px-6 border-l border-r" style={{ borderColor: T.border }}>
+        <span className="rounded-full p-px border" style={{ borderColor: T.primary }}>
+          <span className="w-14 h-14 rounded-full flex items-center justify-center p-1 border-[3px] border-white" style={{ backgroundColor: T.lightBg }}>
+            <User size={48} style={{ color: T.gray700 }} />
+          </span>
         </span>
-        <div className="leading-snug">
-          <div className="text-[15px] font-bold" style={{ color: T.bodyText }}>DE VRIES, Jan</div>
-          <div className="text-[13px]" style={{ color: T.gray600 }}>ID 161 885 4347</div>
-          <div className="text-[13px]" style={{ color: T.gray600 }}>14.03.1953 (73yrs) · Male</div>
+        <div className="leading-[1.5]">
+          <div className="text-[15px] font-semibold" style={{ color: T.bodyText }}>DE VRIES, Jan</div>
+          <div className="text-[15px]" style={{ color: T.gray700 }}>ID 161 885 4347</div>
+          <div className="text-[15px]" style={{ color: T.gray700 }}>14.03.1953 (73yrs) &#8231; Male</div>
         </div>
       </div>
-      <div className="flex-1 flex items-stretch justify-end gap-10 px-10">
+      <div className="flex-1 flex items-stretch justify-end gap-8 px-8">
         {PATIENT_TABS.map((tab) => {
           const active = tab === "CAREMAPS";
           return (
             <span
               key={tab}
-              className={`relative flex items-center text-[13px] tracking-wide ${active ? "font-bold" : "font-normal"}`}
+              className={`relative flex items-center text-[14px] tracking-wide ${active ? "font-bold" : "font-normal"}`}
               style={{ color: active ? T.primary : T.gray700 }}
             >
               {tab}
@@ -429,15 +444,8 @@ function HISShell({ hasCaremap, onCreate, onOpen }) {
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: T.fontFamily }}>
       <LegacyEHRPanel />
       <div className="flex-1 flex flex-col overflow-y-auto" style={{ backgroundColor: T.light }}>
-        <div className="text-white px-8 py-4 flex items-center gap-3" style={{ backgroundColor: T.secondary }}>
-          <svg width="30" height="30" viewBox="0 0 32 32" fill="#17A3C6">
-            <path d="M4 1H28L21 9H11L4 1Z" /><path d="M31 4V28L23 21V11L31 4Z" />
-            <path d="M28 31H4L11 23H21L28 31Z" /><path d="M1 4L9 11V21L1 28V4Z" />
-          </svg>
-          <div className="leading-none">
-            <div className="text-[9px] tracking-[0.25em] font-semibold">OPEN<span className="font-normal opacity-80">LINE</span></div>
-            <div className="text-[16px] font-bold tracking-[0.08em] mt-0.5">VITALY</div>
-          </div>
+        <div className="px-8 py-4 flex items-center" style={{ backgroundColor: T.secondary }}>
+          <img src={vitalyLogo} alt="OpenLine Vitaly" className="h-8 w-auto" />
         </div>
         <div className="p-10 max-w-2xl">
           <h2 className="text-[20px] font-semibold mb-6" style={{ color: T.bodyText }}>Choose the application you would like to open</h2>
@@ -847,37 +855,38 @@ function ActivityRow({ activity, onClick }) {
   const isResolved = cfg.group === "resolved";
   const fieldValue = cfg.field ? activity[cfg.field.key] : null;
   const displayDate = fieldValue ? formatFieldValue(cfg.field.type, fieldValue) : null;
+  const Icon = activity.link ? FileText : Calendar;
 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left border rounded px-4 py-3 flex items-center justify-between gap-3 transition-shadow hover:shadow-sm"
-      style={{ borderColor: T.border, backgroundColor: T.light }}
+      className="w-full text-left border min-h-[48px] p-[17px] rounded-[8px] flex items-center justify-between gap-3 transition-shadow hover:shadow-sm"
+      style={{ borderColor: T.border, backgroundColor: T.cardBg }}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <Calendar size={16} style={{ color: T.gray500 }} className="shrink-0" />
+      <div className="flex items-start gap-[18px] min-w-0">
+        <Icon size={24} style={{ color: T.gray500 }} className="shrink-0" />
         <div className="min-w-0">
-          <div className="text-[14px]">
-            <span style={{ color: T.gray600 }}>{activity.cadence} </span>
-            <span className="font-semibold" style={{ color: T.bodyText }}>{activity.title}</span>
+          <div className="text-[15px] font-semibold leading-[1.5]">
+            <span style={{ color: "rgba(0,0,0,0.5)" }}>{activity.cadence} </span>
+            <span style={{ color: T.muted }}>{activity.title}</span>
           </div>
-          {activity.link && <div className="text-[12px] underline" style={{ color: T.primary }}>{activity.link}</div>}
+          {activity.link && <div className="text-[13px] underline" style={{ color: T.primary }}>{activity.link}</div>}
           {!isResolved && displayDate && (
-            <div className="text-[12px] mt-0.5" style={{ color: T.gray600 }}>
+            <div className="text-[13px] mt-0.5" style={{ color: T.muted }}>
               {displayDate}
               {cfg.extra && activity.hour ? ` · ${activity.hour}` : ""}
               {cfg.extra && activity.location ? ` · ${activity.location}` : ""}
             </div>
           )}
-          {memberName && !isResolved && <div className="text-[12px] mt-0.5" style={{ color: T.gray600 }}>Assigned to {memberName}</div>}
+          {memberName && !isResolved && <div className="text-[13px] mt-0.5" style={{ color: T.muted }}>Assigned to {memberName}</div>}
         </div>
       </div>
 
       {isResolved ? (
         <div className="flex items-center gap-3 shrink-0">
           <div className="text-right">
-            {displayDate && <div className="text-[13px] font-medium" style={{ color: T.bodyText }}>{displayDate}</div>}
-            {memberName && <div className="text-[12px]" style={{ color: T.gray600 }}>{memberName}</div>}
+            {displayDate && <div className="text-[14px] font-medium" style={{ color: T.bodyText }}>{displayDate}</div>}
+            {memberName && <div className="text-[13px]" style={{ color: T.muted }}>{memberName}</div>}
           </div>
           <ResolvedIcon status={activity.status} />
         </div>
@@ -888,24 +897,30 @@ function ActivityRow({ activity, onClick }) {
   );
 }
 
+function SectionHeading({ children }) {
+  return (
+    <div className="flex items-center gap-2 font-bold text-[20px] tracking-[0.8px] uppercase mb-6" style={{ color: T.black }}>
+      {children} <ChevronRight size={18} />
+    </div>
+  );
+}
+
 function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan, onEditActivity }) {
   const todo = activities.filter((a) => statusGroup(a.status) === "todo");
   const resolved = activities.filter((a) => statusGroup(a.status) === "resolved");
   const nothingYet = !planConfigured && activities.length === 0;
 
   return (
-    <div className="bg-white rounded border p-5" style={{ borderColor: T.border }}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-1 font-bold text-[14px] tracking-wide" style={{ color: T.secondary }}>
-          ACTIVITIES <ChevronRight size={16} />
-        </div>
-        <button onClick={onAdd} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: T.primary }} aria-label="Add activity">
+    <div className="bg-white rounded-[4px] p-6 pb-10" style={{ boxShadow: T.cardShadow }}>
+      <div className="flex items-center justify-between mb-6">
+        <SectionHeading>ACTIVITIES</SectionHeading>
+        <button onClick={onAdd} className="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: T.primary }} aria-label="Add activity">
           <Plus size={16} />
         </button>
       </div>
 
       {nothingYet ? (
-        <div className="text-[14px] leading-relaxed mb-2" style={{ color: T.gray600 }}>
+        <div className="text-[15px] leading-[1.5] mb-2" style={{ color: T.muted }}>
           It looks like you haven't added any active tasks, to do so please configure a care plan by clicking on{" "}
           <button onClick={onOpenSetPlan} className="font-semibold underline" style={{ color: T.primary }}>
             Set plan and activate
@@ -914,19 +929,19 @@ function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan, onE
         </div>
       ) : (
         <>
-          <div className="text-[13px] font-bold mb-2" style={{ color: T.bodyText }}>To do</div>
-          <div className="space-y-2">
+          <div className="text-[16px] font-semibold mb-4" style={{ color: T.black }}>To do</div>
+          <div className="space-y-4">
             {todo.map((a) => <ActivityRow key={a.id} activity={a} onClick={() => onEditActivity(a.id)} />)}
-            {todo.length === 0 && <div className="text-[13px]" style={{ color: T.gray600 }}>Nothing to do right now.</div>}
+            {todo.length === 0 && <div className="text-[15px]" style={{ color: T.muted }}>Nothing to do right now.</div>}
           </div>
         </>
       )}
 
-      <div className="mt-5 mb-2 text-[13px] font-bold" style={{ color: T.bodyText }}>Resolved</div>
+      <div className="mt-8 mb-4 text-[16px] font-semibold" style={{ color: T.black }}>Resolved</div>
       {resolved.length === 0 ? (
-        <div className="text-[13px]" style={{ color: T.gray600 }}>There are no resolved activities on your agenda.</div>
+        <div className="text-[15px]" style={{ color: T.muted }}>There are no resolved activities on your agenda.</div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {resolved.map((a) => <ActivityRow key={a.id} activity={a} onClick={() => onEditActivity(a.id)} />)}
         </div>
       )}
@@ -937,35 +952,37 @@ function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan, onE
 function TeamSummary({ team, onAddTeam }) {
   const filled = team.filter((t) => t.memberId);
   return (
-    <div className="bg-white rounded border p-5" style={{ borderColor: T.border }}>
-      <div className="flex items-center gap-1 font-bold text-[14px] tracking-wide mb-4" style={{ color: T.secondary }}>
-        TEAM <ChevronRight size={16} />
-      </div>
+    <div className="bg-white rounded-[4px] p-6" style={{ boxShadow: T.cardShadow }}>
+      <SectionHeading>TEAM</SectionHeading>
       {filled.length === 0 ? (
-        <div className="border rounded p-4" style={{ borderColor: T.border, backgroundColor: T.light }}>
-          <div className="font-bold text-[14px] mb-1" style={{ color: T.bodyText }}>Please define the core team</div>
-          <div className="text-[13px] mb-3" style={{ color: T.gray600 }}>
+        <div className="rounded-[4px] p-4" style={{ backgroundColor: T.cardBg }}>
+          <div className="font-semibold text-[16px] mb-1" style={{ color: T.black }}>Please define the core team</div>
+          <div className="text-[15px] mb-3 leading-[1.5]" style={{ color: T.muted }}>
             Every plan needs a core team. Do so by clicking on the button below or go to the Team tab.
           </div>
           <Btn small variant="outline" onClick={onAddTeam}>Add team members</Btn>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {filled.map((t) => {
             const m = MEMBER_POOL.find((x) => x.id === t.memberId);
             return (
-              <div key={t.id} className="flex items-center justify-between border rounded px-4 py-3 relative overflow-hidden" style={{ borderColor: T.border }}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: T.primary }}>
-                    <User size={14} />
+              <div
+                key={t.id}
+                className="flex items-center justify-between border min-h-[48px] px-[17px] py-4 rounded-[4px] relative overflow-hidden"
+                style={{ borderColor: T.teamItemBorder, backgroundColor: T.cardBg }}
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: T.primary }}>
+                    <User size={26} />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[14px] font-bold truncate" style={{ color: T.bodyText }}>{m.name}</div>
-                    <div className="text-[12px]" style={{ color: T.gray600 }}>{t.label}</div>
+                    <div className="text-[15px] font-semibold truncate" style={{ color: T.black }}>{m.name}</div>
+                    <div className="text-[15px]" style={{ color: T.muted }}>{t.label}</div>
                   </div>
                 </div>
                 {t.temporary && (
-                  <div className="absolute -right-8 top-1.5 rotate-45 text-[10px] font-bold px-8 py-0.5" style={{ backgroundColor: T.warning, color: "#fff" }}>
+                  <div className="absolute -right-8 top-1.5 rotate-45 text-[12px] font-semibold px-8 py-0.5" style={{ backgroundColor: T.warning, color: T.black }}>
                     Temporary
                   </div>
                 )}
@@ -982,23 +999,23 @@ function RoleCard({ role, roleLabel, onOpenAssign }) {
   const m = role?.memberId ? MEMBER_POOL.find((x) => x.id === role.memberId) : null;
   return (
     <div
-      className="w-64 border rounded p-6 flex flex-col items-center text-center relative overflow-hidden"
+      className="w-64 border rounded-[4px] p-6 flex flex-col items-center text-center relative overflow-hidden"
       style={{
-        borderColor: m ? T.border : T.gray400,
+        borderColor: m ? T.teamItemBorder : T.gray400,
         borderStyle: m ? "solid" : "dashed",
-        backgroundColor: m ? "#fff" : T.light,
+        backgroundColor: m ? T.cardBg : "#fff",
       }}
     >
       {role?.temporary && (
-        <div className="absolute -right-8 top-2 rotate-45 text-[10px] font-bold px-8 py-0.5" style={{ backgroundColor: T.warning, color: "#fff" }}>
+        <div className="absolute -right-8 top-2 rotate-45 text-[12px] font-semibold px-8 py-0.5" style={{ backgroundColor: T.warning, color: T.black }}>
           Temporary
         </div>
       )}
       <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: m ? T.primary : "#DCE3E8" }}>
-        <User size={22} color={m ? "#fff" : T.gray500} />
+        <User size={26} color={m ? "#fff" : T.gray500} />
       </div>
-      <div className="font-bold text-[14px] mb-0.5" style={{ color: T.bodyText }}>{m ? m.name : "Add additional roles"}</div>
-      <div className="text-[13px] mb-4" style={{ color: T.gray600 }}>{m ? role.label : "Please assign member a role"}</div>
+      <div className="font-semibold text-[15px] mb-0.5" style={{ color: T.black }}>{m ? m.name : "Add additional roles"}</div>
+      <div className="text-[15px] mb-4" style={{ color: T.muted }}>{m ? role.label : "Please assign member a role"}</div>
       <Btn small variant="outline" onClick={() => onOpenAssign(roleLabel)}>{m ? "Re-Assign member" : "Select a role"}</Btn>
     </div>
   );
@@ -1008,18 +1025,18 @@ function TeamTab({ team, onOpenAssign }) {
   const mandatory = team.filter((t) => t.group === "mandatory");
   const others = team.filter((t) => t.group === "others");
   return (
-    <div className="bg-white rounded border p-6" style={{ borderColor: T.border }}>
+    <div className="bg-white rounded-[4px] p-6" style={{ boxShadow: T.cardShadow }}>
       <div className="flex items-center justify-between mb-6">
-        <div className="font-bold text-[14px] tracking-wide" style={{ color: T.secondary }}>TEAM</div>
+        <div className="font-bold text-[20px] tracking-[0.8px] uppercase" style={{ color: T.black }}>TEAM</div>
         <button onClick={() => onOpenAssign(null)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: T.primary }} aria-label="Add role">
           <Plus size={16} />
         </button>
       </div>
-      <div className="text-[13px] font-bold mb-3" style={{ color: T.bodyText }}>Mandatory</div>
+      <div className="text-[16px] font-semibold mb-4" style={{ color: T.black }}>Mandatory</div>
       <div className="flex gap-6 mb-8 flex-wrap">
         {mandatory.map((r) => <RoleCard key={r.id} role={r} roleLabel={r.label} onOpenAssign={onOpenAssign} />)}
       </div>
-      <div className="text-[13px] font-bold mb-3" style={{ color: T.bodyText }}>Others</div>
+      <div className="text-[16px] font-semibold mb-4" style={{ color: T.black }}>Others</div>
       <div className="flex gap-6 flex-wrap">
         {others.map((r) => <RoleCard key={r.id} role={r} roleLabel={r.label} onOpenAssign={onOpenAssign} />)}
         <RoleCard role={null} roleLabel={null} onOpenAssign={onOpenAssign} />
@@ -1030,12 +1047,12 @@ function TeamTab({ team, onOpenAssign }) {
 
 function StubCard({ title, desc, cta }) {
   return (
-    <div className="bg-white rounded border p-5" style={{ borderColor: T.border }}>
-      <div className="font-bold text-[14px] tracking-wide mb-3" style={{ color: T.secondary }}>{title}</div>
-      <div className="border rounded p-4" style={{ borderColor: T.border, backgroundColor: T.light }}>
-        <div className="font-bold text-[14px] mb-1" style={{ color: T.bodyText }}>{desc}</div>
-        <div className="text-[12px] mb-3" style={{ color: T.gray600 }}>Not wired in this prototype.</div>
-        <Btn small variant="outline" disabled>{cta}</Btn>
+    <div className="bg-white rounded-[4px] p-6" style={{ boxShadow: T.cardShadow }}>
+      <div className="font-bold text-[20px] tracking-[0.8px] uppercase mb-6" style={{ color: T.black }}>{title}</div>
+      <div className="rounded-[4px] p-4 flex flex-col items-start gap-[7px]" style={{ backgroundColor: T.cardBg }}>
+        <div className="font-semibold text-[18px] leading-[1.5]" style={{ color: T.black }}>{desc}</div>
+        <div className="text-[15px] leading-[1.5]" style={{ color: T.muted }}>Not wired in this prototype.</div>
+        <Btn small variant="outline" disabled className="mt-1">{cta}</Btn>
       </div>
     </div>
   );
@@ -1055,10 +1072,12 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
         <TopHeader />
         <PatientBar back={back} />
         <div className="flex-1 overflow-y-auto" style={{ backgroundColor: T.light }}>
-          <div className="px-8 pt-6 flex items-start justify-between gap-6">
-            <div>
-              <div className="text-[24px] font-bold" style={{ color: T.bodyText }}>{caremap.title}</div>
-              <div className="text-[14px] mt-1" style={{ color: T.gray600 }}>{caremap.careFocus}</div>
+          <div className="px-8 py-6 flex items-start justify-between gap-6">
+            <div className="leading-[1.2]" style={{ color: T.black }}>
+              <div className="text-[24px] font-semibold leading-[1.2]">{caremap.title}</div>
+              <div className="text-[15px] leading-[1.5] mt-1">
+                <span className="font-semibold">Care focus:</span> {caremap.careFocus}
+              </div>
             </div>
             {caremap.status === "draft" ? (
               <Btn variant="green" onClick={onOpenSetPlan}>Set plan and activate</Btn>
@@ -1067,7 +1086,7 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
             )}
           </div>
 
-          <div className="px-8 mt-5 flex gap-8 border-b" style={{ borderColor: T.border }}>
+          <div className="px-8 flex gap-8 border-b" style={{ borderColor: T.border }}>
             {TABS.map((t) => {
               const key = t.toLowerCase();
               const active = key === tab;
@@ -1075,12 +1094,12 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
                 <button
                   key={t}
                   onClick={() => setTab(key)}
-                  className="relative pb-3 text-[14px]"
+                  className="relative pb-3 pt-2 text-[15px]"
                   style={{ color: active ? T.primary : T.gray700, fontWeight: active ? 700 : 400 }}
                 >
                   {t}
                   {active && (
-                    <motion.span layoutId="caremap-tab-underline" className="absolute left-0 right-0 bottom-0 h-[3px]" style={{ backgroundColor: T.primary }} />
+                    <motion.span layoutId="caremap-tab-underline" className="absolute left-0 right-0 bottom-0 h-[2px]" style={{ backgroundColor: T.primary }} />
                   )}
                 </button>
               );
@@ -1088,15 +1107,15 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
           </div>
 
           <div className="p-8">
-            <div className="bg-white rounded border px-5 py-3 flex gap-10 mb-5 text-[14px]" style={{ borderColor: T.border }}>
+            <div className="bg-white rounded-[4px] px-5 py-3 flex gap-10 mb-6 text-[15px]" style={{ boxShadow: T.cardShadow }}>
               {caremap.status === "active" ? (
                 <>
-                  <div><span style={{ color: T.gray600 }}>Status&nbsp;&nbsp;</span><Badge tone="green">Active</Badge></div>
-                  <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.startDate}</span></div>
-                  <div><span style={{ color: T.gray600 }}>Start date&nbsp;&nbsp;</span><span className="font-semibold" style={{ color: T.bodyText }}>{caremap.estimatedStartDate}</span></div>
+                  <div><span className="font-semibold" style={{ color: T.black }}>Status&nbsp;&nbsp;</span><Badge tone="green">Active</Badge></div>
+                  <div><span className="font-semibold" style={{ color: T.black }}>Start date&nbsp;&nbsp;</span><span style={{ color: T.muted }}>{caremap.startDate}</span></div>
+                  <div><span className="font-semibold" style={{ color: T.black }}>Start date&nbsp;&nbsp;</span><span style={{ color: T.muted }}>{caremap.estimatedStartDate}</span></div>
                 </>
               ) : (
-                <div><span style={{ color: T.gray600 }}>Status&nbsp;&nbsp;</span><Badge tone="gray">Draft</Badge></div>
+                <div><span className="font-semibold" style={{ color: T.black }}>Status&nbsp;&nbsp;</span><Badge tone="gray">Draft</Badge></div>
               )}
             </div>
 
@@ -1148,7 +1167,7 @@ export default function CaremapsPrototype() {
       unit,
       template,
       title: `${template} Caremap`,
-      careFocus: "Care focus: Quality of life and symptom management, alongside ongoing medical follow-up",
+      careFocus: "Quality of life and symptom management, alongside ongoing medical follow-up",
       status: "draft",
       startDate: null,
       estimatedStartDate: null,
