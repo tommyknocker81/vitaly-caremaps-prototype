@@ -776,10 +776,7 @@ function AddActivityModal({ onClose, onAdd, team }) {
 
       <div className="flex justify-between mt-6">
         <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
-        <div className="flex gap-3">
-          <Btn variant="outline" disabled={!canSubmit} onClick={submit}>Save as Draft</Btn>
-          <Btn disabled={!canSubmit} onClick={submit}>Add activity</Btn>
-        </div>
+        <Btn disabled={!canSubmit} onClick={submit}>Add Activity</Btn>
       </div>
     </Modal>
   );
@@ -835,7 +832,7 @@ function EditActivityModal({ activity, team, onClose, onSave }) {
 
       <div className="flex justify-end gap-3 mt-6">
         <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
-        <Btn disabled={!status} onClick={submit}>Save changes</Btn>
+        <Btn disabled={!status} onClick={submit}>Save</Btn>
       </div>
     </Modal>
   );
