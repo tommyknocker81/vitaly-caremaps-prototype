@@ -1008,7 +1008,7 @@ function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan, onE
 // A single team-panel row. The Case Manager is the only role rendered with
 // the prominent teal avatar — everyone else (other roles, or someone just
 // picked up via an activity assignment) gets the neutral gray treatment.
-function TeamMemberRow({ name, label, temporary, prominent }) {
+function TeamMemberRow({ name, label, prominent }) {
   return (
     <div
       className="flex items-center justify-between border min-h-[48px] px-[17px] py-4 rounded-[4px] relative overflow-hidden"
@@ -1026,11 +1026,6 @@ function TeamMemberRow({ name, label, temporary, prominent }) {
           <div className="text-[15px]" style={{ color: T.muted }}>{label}</div>
         </div>
       </div>
-      {temporary && (
-        <div className="absolute -right-8 top-1.5 rotate-45 text-[12px] font-semibold px-8 py-0.5" style={{ backgroundColor: T.warning, color: T.black }}>
-          Temporary
-        </div>
-      )}
     </div>
   );
 }
@@ -1059,7 +1054,6 @@ function TeamSummary({ team, activities, onAddTeam }) {
                 key={t.id}
                 name={m.name}
                 label={t.label}
-                temporary={t.temporary}
                 prominent={t.label === "Case manager"}
               />
             );
@@ -1078,18 +1072,13 @@ function RoleCard({ role, roleLabel, onOpenAssign }) {
   const prominent = !!m && role.label === "Case manager";
   return (
     <div
-      className="w-64 border rounded-[4px] p-6 flex flex-col items-center text-center relative overflow-hidden"
+      className="w-64 border rounded-[4px] p-6 flex flex-col items-center text-center"
       style={{
         borderColor: m ? T.teamItemBorder : T.gray400,
         borderStyle: m ? "solid" : "dashed",
         backgroundColor: m ? T.cardBg : "#fff",
       }}
     >
-      {role?.temporary && (
-        <div className="absolute -right-8 top-2 rotate-45 text-[12px] font-semibold px-8 py-0.5" style={{ backgroundColor: T.warning, color: T.black }}>
-          Temporary
-        </div>
-      )}
       <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: prominent ? T.primary : "#DCE3E8" }}>
         <User size={26} color={prominent ? "#fff" : T.gray500} />
       </div>
@@ -1277,7 +1266,7 @@ export default function CaremapsPrototype() {
       planConfigured: false,
       planToggles: defaultPlanToggles(),
       activities: [],
-      team: [{ id: "t-case-manager", label: "Case manager", group: "mandatory", memberId: null, temporary: false }],
+      team: [{ id: "t-case-manager", label: "Case manager", group: "mandatory", memberId: null }],
     });
     setModal(null);
     setScreen("detail");
@@ -1321,11 +1310,11 @@ export default function CaremapsPrototype() {
       const existing = c.team.find((t) => t.label === roleLabel);
       let team;
       if (existing) {
-        team = c.team.map((t) => (t.id === existing.id ? { ...t, memberId, temporary: t.group === "mandatory" } : t));
+        team = c.team.map((t) => (t.id === existing.id ? { ...t, memberId } : t));
       } else {
         team = [
           ...c.team,
-          { id: `t-${Date.now()}`, label: roleLabel, group: roleLabel === "Case manager" ? "mandatory" : "others", memberId, temporary: roleLabel === "Case manager" },
+          { id: `t-${Date.now()}`, label: roleLabel, group: roleLabel === "Case manager" ? "mandatory" : "others", memberId },
         ];
       }
 

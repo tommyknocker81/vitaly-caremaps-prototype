@@ -16,8 +16,8 @@ state; nothing persists across a reload.
   a start-date picker; once activated the plan locks and the status bar shows the real + estimated start
   dates
 - **Team assignment**: a mandatory Case Manager slot plus open-ended "Add additional roles" slots, each
-  filled via a searchable/filterable "Assign member a role" table; a freshly-assigned Case Manager gets an
-  orange "Temporary" ribbon
+  filled via a searchable/filterable "Assign member a role" table; the Case Manager is the only role/assignee
+  rendered with the prominent teal avatar, so they stand out from the rest of the team at a glance
 - **Activity → assignee linking** (the piece requested beyond the source screenshots): `Add new activity`'s
   "Assign to" dropdown is populated only from team roles that already have a member, and the assignment
   shows up immediately on the Overview/Activities activity row — no separate save step
@@ -31,9 +31,8 @@ prototypes read as one product.
 
 ## Simplifications (flagged per the brief's open questions)
 
-- The mandatory Case Manager stays "Temporary" permanently in this prototype — no separate "Confirm" step.
 - "Others" role slots are available immediately, not gated behind a confirmed Case Manager (the reference
-  screenshots show them present at the same time as an unfilled/temporary Case Manager).
+  screenshots show them present at the same time as an unfilled Case Manager).
 - Only "End of life care" has a real seeded activity set; the other two template options in `Create
   Caremap` are present in the dropdown but reuse the same default activities.
 - The legacy left-hand EHR panel on the HIS start screen is a static, simplified recreation for scene-setting
