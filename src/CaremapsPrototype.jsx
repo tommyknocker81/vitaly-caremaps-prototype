@@ -163,7 +163,7 @@ function Badge({ children, tone = "gray" }) {
     teal: { backgroundColor: T.primary, color: "#fff" },
     green: { backgroundColor: T.success, color: "#fff" },
     warning: { backgroundColor: T.warning, color: "#fff" },
-    info: { backgroundColor: "#DCEEF3", color: T.primary },
+    info: { backgroundColor: "rgba(0,128,163,0.11)", color: T.primary },
   };
   return (
     <span
@@ -220,6 +220,20 @@ function Field({ label, children, required }) {
 
 const selectCls = "w-full border rounded-[4px] px-3 py-2 text-[15px] bg-white outline-none focus:ring-1";
 const selectStyle = { borderColor: T.gray400, color: T.bodyText };
+
+// Native <select> arrows sit flush against the box edge with no breathing
+// room once padding is customized — this wraps it with appearance:none and
+// draws our own chevron with proper right-side spacing.
+function Select({ className = "", style, wrapperStyle, children, ...props }) {
+  return (
+    <div className="relative w-full" style={wrapperStyle}>
+      <select className={`${selectCls} appearance-none pr-9 ${className}`} style={style} {...props}>
+        {children}
+      </select>
+      <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style={{ color: T.gray600 }} />
+    </div>
+  );
+}
 
 function ToggleField({ on, onChange }) {
   return (
@@ -485,14 +499,14 @@ function CreateCaremapModal({ onClose, onCreate }) {
   return (
     <Modal title="Create Caremap" onClose={onClose} width={520}>
       <Field label="Care unit" required>
-        <select className={selectCls} style={selectStyle} value={unit} onChange={(e) => setUnit(e.target.value)}>
+        <Select style={selectStyle} value={unit} onChange={(e) => setUnit(e.target.value)}>
           {CARE_UNITS.map((u) => <option key={u}>{u}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label="Caremap template">
-        <select className={selectCls} style={selectStyle} value={template} onChange={(e) => setTemplate(e.target.value)}>
+        <Select style={selectStyle} value={template} onChange={(e) => setTemplate(e.target.value)}>
           {TEMPLATES.map((t) => <option key={t}>{t}</option>)}
-        </select>
+        </Select>
       </Field>
       <div className="flex justify-end gap-3 mt-6">
         <Btn variant="neutral" onClick={onClose}>Close</Btn>
@@ -586,14 +600,15 @@ function AssignRoleModal({ fixedRole, onClose, onAssign }) {
         {fixedRole ? (
           <span className="font-bold" style={{ color: T.primary }}>{fixedRole}</span>
         ) : (
-          <select
+          <Select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="border rounded px-2 py-1 text-[14px] font-bold outline-none"
+            className="!w-auto !py-1 !text-[14px] font-bold"
             style={{ borderColor: T.gray400, color: T.primary }}
+            wrapperStyle={{ display: "inline-block", width: "auto" }}
           >
             {ROLE_POOL.map((r) => <option key={r}>{r}</option>)}
-          </select>
+          </Select>
         )}
       </div>
       <div className="flex gap-3 mb-4">
@@ -601,10 +616,10 @@ function AssignRoleModal({ fixedRole, onClose, onAssign }) {
           <Search size={14} style={{ color: T.gray600 }} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" className="ml-2 text-[14px] w-full outline-none" />
         </div>
-        <select className={selectCls} style={{ ...selectStyle, maxWidth: 190 }} value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
+        <Select style={selectStyle} wrapperStyle={{ maxWidth: 190 }} value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
           <option value="">Job title</option>
           {jobTitles.map((j) => <option key={j}>{j}</option>)}
-        </select>
+        </Select>
       </div>
       <div className="border rounded overflow-hidden" style={{ borderColor: T.border }}>
         <div className="grid text-[12px] font-bold uppercase px-4 py-2.5" style={{ gridTemplateColumns: "24px 1.4fr 1fr 1.4fr 1.4fr", backgroundColor: T.light, color: T.gray600 }}>
@@ -648,8 +663,7 @@ function StatusFields({ status, setStatus, fields, setField, locked }) {
     <>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Status" required>
-          <select
-            className={selectCls}
+          <Select
             style={selectStyle}
             value={status}
             disabled={locked}
@@ -662,7 +676,7 @@ function StatusFields({ status, setStatus, fields, setField, locked }) {
             <optgroup label="Resolved">
               {RESOLVED_STATUSES.map((s) => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
             </optgroup>
-          </select>
+          </Select>
         </Field>
         {cfg?.field && (
           <Field label={cfg.field.label} required>
@@ -709,13 +723,13 @@ function AssignToField({ assignee, setAssignee, team }) {
   const filledTeam = team.filter((t) => t.memberId);
   return (
     <Field label="Assign to">
-      <select className={selectCls} style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+      <Select style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
         <option value="">Unassigned</option>
         {filledTeam.map((t) => {
           const m = MEMBER_POOL.find((x) => x.id === t.memberId);
           return <option key={t.id} value={m.id}>{m.name} ({t.label})</option>;
         })}
-      </select>
+      </Select>
       {filledTeam.length === 0 && (
         <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>Add team members first to be able to assign this activity to someone.</div>
       )}
@@ -742,10 +756,10 @@ function AddActivityModal({ onClose, onAdd, team }) {
   return (
     <Modal title="Add new activity" onClose={onClose} width={620}>
       <Field label="Activity type" required>
-        <select className={selectCls} style={selectStyle} value={type} onChange={(e) => setType(e.target.value)}>
+        <Select style={selectStyle} value={type} onChange={(e) => setType(e.target.value)}>
           <option value="" disabled>Please select</option>
           {ACTIVITY_TYPES.map((t) => <option key={t}>{t}</option>)}
-        </select>
+        </Select>
       </Field>
 
       {type && (
@@ -753,10 +767,10 @@ function AddActivityModal({ onClose, onAdd, team }) {
           <StatusFields status={status} setStatus={setStatus} fields={fields} setField={setField} />
 
           <Field label="Select provider" required>
-            <select className={selectCls} style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
+            <Select style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
               <option value="" disabled>Please select</option>
               {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
-            </select>
+            </Select>
           </Field>
 
           <AssignToField assignee={assignee} setAssignee={setAssignee} team={team} />
@@ -814,10 +828,10 @@ function EditActivityModal({ activity, team, onClose, onSave }) {
       <StatusFields status={status} setStatus={setStatus} fields={fields} setField={setField} />
 
       <Field label="Select provider">
-        <select className={selectCls} style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
+        <Select style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
           <option value="">Unspecified</option>
           {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
-        </select>
+        </Select>
       </Field>
 
       <AssignToField assignee={assignee} setAssignee={setAssignee} team={team} />
@@ -870,20 +884,20 @@ function ActivityRow({ activity, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left border min-h-[48px] p-[17px] rounded-[8px] flex items-center justify-between gap-3 transition-shadow hover:shadow-sm"
+      className="w-full text-left border min-h-[48px] pl-[25px] pr-[11px] py-[13px] rounded-[8px] flex items-center justify-between gap-3 transition-shadow hover:shadow-sm"
       style={{ borderColor: T.border, backgroundColor: T.cardBg }}
     >
-      <div className="flex items-start gap-[18px] min-w-0">
-        <Icon size={24} style={{ color: T.gray500 }} className="shrink-0" />
+      <div className="flex items-start gap-[16px] min-w-0">
+        <Icon size={20} style={{ color: T.gray500 }} className="shrink-0" />
         <div className="min-w-0">
           <div className="text-[15px] font-semibold leading-[1.5]">
             <span style={{ color: "rgba(0,0,0,0.5)" }}>{activity.cadence} </span>
             <span style={{ color: T.muted }}>{activity.title}</span>
           </div>
           {activity.link ? (
-            <div className="text-[13px] underline" style={{ color: T.primary }}>{activity.link}</div>
+            <div className="text-[15px] underline" style={{ color: T.primary }}>{activity.link}</div>
           ) : (
-            !isResolved && <div className="text-[13px] underline" style={{ color: T.primary }}>{assignedLine}</div>
+            !isResolved && <div className="text-[15px] underline" style={{ color: T.primary }}>{assignedLine}</div>
           )}
         </div>
       </div>
