@@ -111,6 +111,24 @@ function statusGroup(status) {
   return STATUS_CONFIG[status]?.group ?? "todo";
 }
 
+// People who've been assigned an activity but aren't a formal team role —
+// they still show up in the Team panel/tab, just without a role label.
+function extraActivityAssignees(activities, team) {
+  const teamMemberIds = new Set(team.filter((t) => t.memberId).map((t) => t.memberId));
+  const seen = new Set();
+  const extra = [];
+  activities.forEach((a) => {
+    if (a.assigneeId && !teamMemberIds.has(a.assigneeId) && !seen.has(a.assigneeId)) {
+      const m = MEMBER_POOL.find((x) => x.id === a.assigneeId);
+      if (m) {
+        seen.add(a.assigneeId);
+        extra.push(m);
+      }
+    }
+  });
+  return extra;
+}
+
 // Builds/refreshes the "To do" activity list from the plan items + current
 // toggle choices, preserving status (and any status-specific fields) on any
 // item that already existed, and keeping custom activities untouched.
@@ -987,46 +1005,68 @@ function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan, onE
   );
 }
 
-function TeamSummary({ team, onAddTeam }) {
+// A single team-panel row. The Case Manager is the only role rendered with
+// the prominent teal avatar — everyone else (other roles, or someone just
+// picked up via an activity assignment) gets the neutral gray treatment.
+function TeamMemberRow({ name, label, temporary, prominent }) {
+  return (
+    <div
+      className="flex items-center justify-between border min-h-[48px] px-[17px] py-4 rounded-[4px] relative overflow-hidden"
+      style={{ borderColor: T.teamItemBorder, backgroundColor: T.cardBg }}
+    >
+      <div className="flex items-center gap-4 min-w-0">
+        <div
+          className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+          style={{ backgroundColor: prominent ? T.primary : "#DCE3E8" }}
+        >
+          <User size={26} color={prominent ? "#fff" : T.gray500} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[15px] font-semibold truncate" style={{ color: T.black }}>{name}</div>
+          <div className="text-[15px]" style={{ color: T.muted }}>{label}</div>
+        </div>
+      </div>
+      {temporary && (
+        <div className="absolute -right-8 top-1.5 rotate-45 text-[12px] font-semibold px-8 py-0.5" style={{ backgroundColor: T.warning, color: T.black }}>
+          Temporary
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamSummary({ team, activities, onAddTeam }) {
   const filled = team.filter((t) => t.memberId);
+  const extra = extraActivityAssignees(activities, team);
   return (
     <div className="bg-white rounded-[4px] p-6" style={{ boxShadow: T.cardShadow }}>
       <SectionHeading>TEAM</SectionHeading>
-      {filled.length === 0 ? (
-        <div className="rounded-[4px] p-4" style={{ backgroundColor: T.cardBg }}>
+      {filled.length === 0 && (
+        <div className="rounded-[4px] p-4 mb-4" style={{ backgroundColor: T.cardBg }}>
           <div className="font-semibold text-[16px] mb-1" style={{ color: T.black }}>Please define the core team</div>
           <div className="text-[15px] mb-3 leading-[1.5]" style={{ color: T.muted }}>
             Every plan needs a core team. Do so by clicking on the button below or go to the Team tab.
           </div>
           <Btn small variant="outline" onClick={onAddTeam}>Add team members</Btn>
         </div>
-      ) : (
+      )}
+      {(filled.length > 0 || extra.length > 0) && (
         <div className="space-y-4">
           {filled.map((t) => {
             const m = MEMBER_POOL.find((x) => x.id === t.memberId);
             return (
-              <div
+              <TeamMemberRow
                 key={t.id}
-                className="flex items-center justify-between border min-h-[48px] px-[17px] py-4 rounded-[4px] relative overflow-hidden"
-                style={{ borderColor: T.teamItemBorder, backgroundColor: T.cardBg }}
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: T.primary }}>
-                    <User size={26} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-semibold truncate" style={{ color: T.black }}>{m.name}</div>
-                    <div className="text-[15px]" style={{ color: T.muted }}>{t.label}</div>
-                  </div>
-                </div>
-                {t.temporary && (
-                  <div className="absolute -right-8 top-1.5 rotate-45 text-[12px] font-semibold px-8 py-0.5" style={{ backgroundColor: T.warning, color: T.black }}>
-                    Temporary
-                  </div>
-                )}
-              </div>
+                name={m.name}
+                label={t.label}
+                temporary={t.temporary}
+                prominent={t.label === "Case manager"}
+              />
             );
           })}
+          {extra.map((m) => (
+            <TeamMemberRow key={m.id} name={m.name} label={m.jobTitle} prominent={false} />
+          ))}
         </div>
       )}
     </div>
@@ -1035,6 +1075,7 @@ function TeamSummary({ team, onAddTeam }) {
 
 function RoleCard({ role, roleLabel, onOpenAssign }) {
   const m = role?.memberId ? MEMBER_POOL.find((x) => x.id === role.memberId) : null;
+  const prominent = !!m && role.label === "Case manager";
   return (
     <div
       className="w-64 border rounded-[4px] p-6 flex flex-col items-center text-center relative overflow-hidden"
@@ -1049,8 +1090,8 @@ function RoleCard({ role, roleLabel, onOpenAssign }) {
           Temporary
         </div>
       )}
-      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: m ? T.primary : "#DCE3E8" }}>
-        <User size={26} color={m ? "#fff" : T.gray500} />
+      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: prominent ? T.primary : "#DCE3E8" }}>
+        <User size={26} color={prominent ? "#fff" : T.gray500} />
       </div>
       <div className="font-semibold text-[15px] mb-0.5" style={{ color: T.black }}>{m ? m.name : "Add additional roles"}</div>
       <div className="text-[15px] mb-4" style={{ color: T.muted }}>{m ? role.label : "Please assign member a role"}</div>
@@ -1059,9 +1100,25 @@ function RoleCard({ role, roleLabel, onOpenAssign }) {
   );
 }
 
-function TeamTab({ team, onOpenAssign }) {
+// Someone picked up via an activity assignment rather than a formal role —
+// shown alongside the role cards, but read-only (no role slot to reassign).
+function AssigneeCard({ member }) {
+  return (
+    <div className="w-64 border rounded-[4px] p-6 flex flex-col items-center text-center" style={{ borderColor: T.teamItemBorder, backgroundColor: T.cardBg }}>
+      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: "#DCE3E8" }}>
+        <User size={26} color={T.gray500} />
+      </div>
+      <div className="font-semibold text-[15px] mb-0.5" style={{ color: T.black }}>{member.name}</div>
+      <div className="text-[15px]" style={{ color: T.muted }}>{member.jobTitle}</div>
+      <div className="text-[12px] mt-2" style={{ color: T.gray500 }}>Assigned via activity</div>
+    </div>
+  );
+}
+
+function TeamTab({ team, activities, onOpenAssign }) {
   const mandatory = team.filter((t) => t.group === "mandatory");
   const others = team.filter((t) => t.group === "others");
+  const extra = extraActivityAssignees(activities, team);
   return (
     <div className="bg-white rounded-[4px] p-6" style={{ boxShadow: T.cardShadow }}>
       <div className="flex items-center justify-between mb-6">
@@ -1075,10 +1132,18 @@ function TeamTab({ team, onOpenAssign }) {
         {mandatory.map((r) => <RoleCard key={r.id} role={r} roleLabel={r.label} onOpenAssign={onOpenAssign} />)}
       </div>
       <div className="text-[16px] font-semibold mb-4" style={{ color: T.black }}>Others</div>
-      <div className="flex gap-6 flex-wrap">
+      <div className="flex gap-6 mb-8 flex-wrap">
         {others.map((r) => <RoleCard key={r.id} role={r} roleLabel={r.label} onOpenAssign={onOpenAssign} />)}
         <RoleCard role={null} roleLabel={null} onOpenAssign={onOpenAssign} />
       </div>
+      {extra.length > 0 && (
+        <>
+          <div className="text-[16px] font-semibold mb-4" style={{ color: T.black }}>Assigned via activities</div>
+          <div className="flex gap-6 flex-wrap">
+            {extra.map((m) => <AssigneeCard key={m.id} member={m} />)}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1169,7 +1234,7 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
                   />
                 </div>
                 <div className="space-y-6">
-                  <TeamSummary team={caremap.team} onAddTeam={() => onOpenAssign("Case manager")} />
+                  <TeamSummary team={caremap.team} activities={caremap.activities} onAddTeam={() => onOpenAssign("Case manager")} />
                   <StubCard title="CLINICAL CONSULTANT" desc="Please add clinical consultant's details" cta="Add clinical consultant" />
                   <StubCard title="EMERGENCY CONTACT" desc="Add any emergency contacts if needed" cta="Add emergency contact" />
                   <StubCard title="ADDITIONAL INFORMATION" desc="Patient-related information" cta="Add additional information" />
@@ -1177,7 +1242,7 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
               </div>
             )}
 
-            {tab === "team" && <TeamTab team={caremap.team} onOpenAssign={onOpenAssign} />}
+            {tab === "team" && <TeamTab team={caremap.team} activities={caremap.activities} onOpenAssign={onOpenAssign} />}
 
             {["pzp", "questionnaires", "comments", "messages"].includes(tab) && (
               <div className="bg-white rounded border p-12 text-center text-[14px]" style={{ borderColor: T.border, color: T.gray600 }}>
