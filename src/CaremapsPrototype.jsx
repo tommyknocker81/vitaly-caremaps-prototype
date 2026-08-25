@@ -59,6 +59,13 @@ function staffForProvider(provider) {
   return MEMBER_POOL.filter((m) => m.org === provider);
 }
 
+// Job titles realistically eligible to act as Case Manager (GPs and
+// community nurses, matching who plays that role in the reference
+// screenshots) — the "Assign Case manager" task's "Assign to" only offers
+// these, not the full staff roster.
+const CASE_MANAGER_JOB_TITLES = ["GP", "Community Nurse"];
+const CASE_MANAGER_CANDIDATES = MEMBER_POOL.filter((m) => CASE_MANAGER_JOB_TITLES.includes(m.jobTitle));
+
 const ROLE_POOL = ["Community nurse", "Oncologist", "Physiotherapist", "GP", "Social worker", "Spiritual counsellor"];
 
 const ACTIVITY_TYPES = ["Physiotherapy", "Pain management", "Palliative nursing visit", "Spiritual counselling", "Social work consult", "Home care evaluation"];
@@ -747,15 +754,19 @@ function StatusFields({ status, setStatus, fields, setField, locked }) {
   );
 }
 
-function AssignToField({ assignee, setAssignee, provider }) {
-  const staff = staffForProvider(provider);
+// By default, options come from the selected provider's staff. Pass
+// `members` explicitly to source from a fixed pool instead (e.g. the
+// "Assign Case manager" task, which isn't tied to any provider).
+function AssignToField({ assignee, setAssignee, provider, members }) {
+  const staff = members || staffForProvider(provider);
+  const empty = !members && !provider;
   return (
     <Field label="Assign to">
-      <Select style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={!provider}>
+      <Select style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={empty}>
         <option value="">Unassigned</option>
         {staff.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.jobTitle})</option>)}
       </Select>
-      {!provider && (
+      {empty && (
         <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>Select a provider first to see who's available to assign.</div>
       )}
     </Field>
@@ -830,6 +841,7 @@ function AddActivityModal({ onClose, onAdd }) {
 const STATUS_FIELD_KEYS = ["requiredMonth", "planningMonth", "scheduledDate", "hour", "location", "completedDate", "declinedDate", "cancelledDate"];
 
 function EditActivityModal({ activity, onClose, onSave }) {
+  const isCaseManagerTask = activity.id === CASE_MANAGER_ACTIVITY_ID;
   const [status, setStatus] = useState(activity.status);
   const [fields, setFields] = useState(() => {
     const f = {};
@@ -843,7 +855,7 @@ function EditActivityModal({ activity, onClose, onSave }) {
   const setField = (key, value) => setFields((f) => ({ ...f, [key]: value }));
 
   const submit = () => {
-    onSave({ status, fields, provider, comment, assigneeId: assignee || null });
+    onSave({ status, fields, provider: isCaseManagerTask ? "" : provider, comment, assigneeId: assignee || null });
     onClose();
   };
 
@@ -856,18 +868,25 @@ function EditActivityModal({ activity, onClose, onSave }) {
       )}
       <StatusFields status={status} setStatus={setStatus} fields={fields} setField={setField} />
 
-      <Field label="Select provider">
-        <Select
-          style={selectStyle}
-          value={provider}
-          onChange={(e) => { setProvider(e.target.value); setAssignee(""); }}
-        >
-          <option value="">Unspecified</option>
-          {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
-        </Select>
-      </Field>
+      {!isCaseManagerTask && (
+        <Field label="Select provider">
+          <Select
+            style={selectStyle}
+            value={provider}
+            onChange={(e) => { setProvider(e.target.value); setAssignee(""); }}
+          >
+            <option value="">Unspecified</option>
+            {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
+          </Select>
+        </Field>
+      )}
 
-      <AssignToField assignee={assignee} setAssignee={setAssignee} provider={provider} />
+      <AssignToField
+        assignee={assignee}
+        setAssignee={setAssignee}
+        provider={provider}
+        members={isCaseManagerTask ? CASE_MANAGER_CANDIDATES : undefined}
+      />
 
       <Field label="Write your comment">
         <textarea
