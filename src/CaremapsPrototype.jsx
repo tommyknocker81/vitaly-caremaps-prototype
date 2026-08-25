@@ -92,11 +92,11 @@ function defaultPlanToggles() {
 
 // Every activity status belongs to a group (To do vs Resolved) and, once
 // picked, reveals its own associated field(s) in the activity modal —
-// matches the six status mockups (Required/Planned/Scheduled/Completed/
+// matches the six status mockups (Requested/Planned/Scheduled/Completed/
 // Declined by patient/Cancelled), each with a different field beside it.
 const STATUS_CONFIG = {
   undefined: { label: "Undefined", group: "todo", tone: "gray" },
-  required: { label: "Required", group: "todo", tone: "teal", field: { key: "requiredMonth", label: "Set required month", type: "month" } },
+  required: { label: "Requested", group: "todo", tone: "teal", field: { key: "requiredMonth", label: "Set requested month", type: "month" } },
   planned: { label: "Planned", group: "todo", tone: "info", field: { key: "planningMonth", label: "Set planning month", type: "month" } },
   scheduled: { label: "Scheduled", group: "todo", tone: "teal", field: { key: "scheduledDate", label: "Set date", type: "date" }, extra: true },
   completed: { label: "Completed", group: "resolved", field: { key: "completedDate", label: "Set completed date", type: "date" } },
@@ -666,7 +666,7 @@ function AssignRoleModal({ fixedRole, onClose, onAssign }) {
 // Status select + its associated field(s) — shared by the "Add new
 // activity" (progressive disclosure) and "edit activity" (all fields
 // visible at once, prefilled) modals, so both stay in sync with the six
-// status mockups (Required/Planned/Scheduled/Completed/Declined/Cancelled).
+// status mockups (Requested/Planned/Scheduled/Completed/Declined/Cancelled).
 function StatusFields({ status, setStatus, fields, setField, locked }) {
   const cfg = STATUS_CONFIG[status];
   return (
