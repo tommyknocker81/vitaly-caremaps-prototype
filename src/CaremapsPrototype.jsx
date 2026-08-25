@@ -4,6 +4,7 @@ import {
   Users, Repeat, LayoutGrid, Bell, ShieldAlert, UserCog, FileText, BarChart3,
   History, ChevronsLeft, ChevronLeft, ChevronDown, ChevronRight, User, Star,
   Plus, X, Search, Calendar, ClipboardCheck, ClipboardList, UsersRound, FileStack,
+  CheckCircle2, XCircle, UserX,
 } from "lucide-react";
 
 // Vitaly RSO design tokens (Figma: OpenLine-Vitaly) — shared with the
@@ -71,10 +72,30 @@ function defaultPlanToggles() {
   return t;
 }
 
+// Every activity status belongs to a group (To do vs Resolved) and, once
+// picked, reveals its own associated field(s) in the activity modal —
+// matches the six status mockups (Required/Planned/Scheduled/Completed/
+// Declined by patient/Cancelled), each with a different field beside it.
+const STATUS_CONFIG = {
+  undefined: { label: "Undefined", group: "todo", tone: "gray" },
+  required: { label: "Required", group: "todo", tone: "teal", field: { key: "requiredMonth", label: "Set required month", type: "month" } },
+  planned: { label: "Planned", group: "todo", tone: "warning", field: { key: "planningMonth", label: "Set planning month", type: "month" } },
+  scheduled: { label: "Scheduled", group: "todo", tone: "teal", field: { key: "scheduledDate", label: "Set date", type: "date" }, extra: true },
+  completed: { label: "Completed", group: "resolved", field: { key: "completedDate", label: "Set completed date", type: "date" } },
+  declined: { label: "Declined by patient", group: "resolved", field: { key: "declinedDate", label: "Set declined date", type: "date" } },
+  cancelled: { label: "Cancelled", group: "resolved", field: { key: "cancelledDate", label: "Set cancelled date", type: "date" } },
+};
+const TODO_STATUSES = ["undefined", "required", "planned", "scheduled"];
+const RESOLVED_STATUSES = ["completed", "declined", "cancelled"];
+const ALL_STATUSES = [...TODO_STATUSES, ...RESOLVED_STATUSES];
+
+function statusGroup(status) {
+  return STATUS_CONFIG[status]?.group ?? "todo";
+}
+
 // Builds/refreshes the "To do" activity list from the plan items + current
-// toggle choices, preserving status on any item that already existed (e.g.
-// "Assign Case manager" already resolved) and keeping any custom activities
-// added via "Add new activity" untouched.
+// toggle choices, preserving status (and any status-specific fields) on any
+// item that already existed, and keeping custom activities untouched.
 function mergePlanIntoActivities(existingActivities, toggles) {
   const custom = existingActivities.filter((a) => !PLAN_ITEM_IDS.has(a.id));
   const planItems = SET_PLAN_ITEMS.filter((item) => !item.toggle || toggles[item.id]).map((item) => {
@@ -86,7 +107,6 @@ function mergePlanIntoActivities(existingActivities, toggles) {
         cadence: item.cadence,
         status: "undefined",
         mandatory: !item.toggle,
-        category: "todo",
       }
     );
   });
@@ -98,10 +118,14 @@ function mergePlanIntoActivities(existingActivities, toggles) {
 function syncCaseManagerActivity(activities, team) {
   const hasCaseManager = !!team.find((t) => t.label === "Case manager")?.memberId;
   return activities.map((a) =>
-    a.id === CASE_MANAGER_ACTIVITY_ID && hasCaseManager
-      ? { ...a, status: "resolved", category: "resolved" }
+    a.id === CASE_MANAGER_ACTIVITY_ID && hasCaseManager && a.status !== "completed"
+      ? { ...a, status: "completed", completedDate: a.completedDate || todayISO() }
       : a
   );
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function formatDMY(iso) {
@@ -113,6 +137,14 @@ function addMonthsDMY(iso, n) {
   d.setMonth(d.getMonth() + n);
   return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
 }
+function formatFieldValue(type, value) {
+  if (!value) return null;
+  if (type === "month") {
+    const [y, m] = value.split("-");
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  }
+  return formatDMY(value);
+}
 
 /* ================= building blocks ================= */
 
@@ -121,6 +153,7 @@ function Badge({ children, tone = "gray" }) {
     gray: { backgroundColor: "#5B6774", color: "#fff" },
     teal: { backgroundColor: T.primary, color: "#fff" },
     green: { backgroundColor: T.success, color: "#fff" },
+    warning: { backgroundColor: T.warning, color: "#fff" },
   };
   return (
     <span className="px-2.5 py-1 rounded text-[11px] font-bold tracking-wide uppercase shrink-0" style={tones[tone]}>
@@ -595,17 +628,104 @@ function AssignRoleModal({ fixedRole, onClose, onAssign }) {
   );
 }
 
+// Status select + its associated field(s) — shared by the "Add new
+// activity" (progressive disclosure) and "edit activity" (all fields
+// visible at once, prefilled) modals, so both stay in sync with the six
+// status mockups (Required/Planned/Scheduled/Completed/Declined/Cancelled).
+function StatusFields({ status, setStatus, fields, setField, locked }) {
+  const cfg = STATUS_CONFIG[status];
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Status" required>
+          <select
+            className={selectCls}
+            style={selectStyle}
+            value={status}
+            disabled={locked}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="" disabled>Please select</option>
+            <optgroup label="To do">
+              {TODO_STATUSES.map((s) => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+            </optgroup>
+            <optgroup label="Resolved">
+              {RESOLVED_STATUSES.map((s) => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+            </optgroup>
+          </select>
+        </Field>
+        {cfg?.field && (
+          <Field label={cfg.field.label} required>
+            <input
+              type={cfg.field.type}
+              className={selectCls}
+              style={selectStyle}
+              disabled={locked}
+              value={fields[cfg.field.key] || ""}
+              onChange={(e) => setField(cfg.field.key, e.target.value)}
+            />
+          </Field>
+        )}
+      </div>
+      {cfg?.extra && (
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Hour" required>
+            <input
+              type="time"
+              className={selectCls}
+              style={selectStyle}
+              disabled={locked}
+              value={fields.hour || ""}
+              onChange={(e) => setField("hour", e.target.value)}
+            />
+          </Field>
+          <Field label="Location" required>
+            <input
+              type="text"
+              className={selectCls}
+              style={selectStyle}
+              disabled={locked}
+              value={fields.location || ""}
+              onChange={(e) => setField("location", e.target.value)}
+            />
+          </Field>
+        </div>
+      )}
+    </>
+  );
+}
+
+function AssignToField({ assignee, setAssignee, team }) {
+  const filledTeam = team.filter((t) => t.memberId);
+  return (
+    <Field label="Assign to">
+      <select className={selectCls} style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+        <option value="">Unassigned</option>
+        {filledTeam.map((t) => {
+          const m = MEMBER_POOL.find((x) => x.id === t.memberId);
+          return <option key={t.id} value={m.id}>{m.name} ({t.label})</option>;
+        })}
+      </select>
+      {filledTeam.length === 0 && (
+        <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>Add team members first to be able to assign this activity to someone.</div>
+      )}
+    </Field>
+  );
+}
+
 function AddActivityModal({ onClose, onAdd, team }) {
-  const [type, setType] = useState(ACTIVITY_TYPES[0]);
-  const [provider, setProvider] = useState(PROVIDERS[0]);
-  const [status, setStatus] = useState("Required");
-  const [week, setWeek] = useState("");
+  const [type, setType] = useState("");
+  const [provider, setProvider] = useState("");
+  const [status, setStatus] = useState("");
+  const [fields, setFields] = useState({});
   const [comment, setComment] = useState("");
   const [assignee, setAssignee] = useState("");
-  const filledTeam = team.filter((t) => t.memberId);
+
+  const setField = (key, value) => setFields((f) => ({ ...f, [key]: value }));
+  const canSubmit = !!type && !!status;
 
   const submit = () => {
-    onAdd({ type, provider, status, week, comment, assignee });
+    onAdd({ type, provider, status, fields, comment, assignee });
     onClose();
   };
 
@@ -613,37 +733,89 @@ function AddActivityModal({ onClose, onAdd, team }) {
     <Modal title="Add new activity" onClose={onClose} width={620}>
       <Field label="Activity type" required>
         <select className={selectCls} style={selectStyle} value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="" disabled>Please select</option>
           {ACTIVITY_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
       </Field>
-      <Field label="Select provider" required>
+
+      {type && (
+        <>
+          <StatusFields status={status} setStatus={setStatus} fields={fields} setField={setField} />
+
+          <Field label="Select provider" required>
+            <select className={selectCls} style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
+              <option value="" disabled>Please select</option>
+              {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </Field>
+
+          <AssignToField assignee={assignee} setAssignee={setAssignee} team={team} />
+
+          <Field label="Write your comment" required>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Autosize height based on content lines"
+              className={selectCls}
+              style={{ ...selectStyle, minHeight: 90, resize: "vertical" }}
+            />
+          </Field>
+          <button className="flex items-center gap-2 text-[14px] font-semibold mb-2" style={{ color: T.primary }}>
+            <Plus size={14} /> Add document
+          </button>
+        </>
+      )}
+
+      <div className="flex justify-between mt-6">
+        <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
+        <div className="flex gap-3">
+          <Btn variant="outline" disabled={!canSubmit} onClick={submit}>Save as Draft</Btn>
+          <Btn disabled={!canSubmit} onClick={submit}>Add activity</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+const STATUS_FIELD_KEYS = ["requiredMonth", "planningMonth", "scheduledDate", "hour", "location", "completedDate", "declinedDate", "cancelledDate"];
+
+function EditActivityModal({ activity, team, onClose, onSave }) {
+  const [status, setStatus] = useState(activity.status);
+  const [fields, setFields] = useState(() => {
+    const f = {};
+    STATUS_FIELD_KEYS.forEach((k) => { if (activity[k] != null) f[k] = activity[k]; });
+    return f;
+  });
+  const [provider, setProvider] = useState(activity.provider || "");
+  const [comment, setComment] = useState(activity.comment || "");
+  const [assignee, setAssignee] = useState(activity.assigneeId || "");
+
+  const setField = (key, value) => setFields((f) => ({ ...f, [key]: value }));
+
+  const submit = () => {
+    onSave({ status, fields, provider, comment, assigneeId: assignee || null });
+    onClose();
+  };
+
+  return (
+    <Modal title={activity.title} onClose={onClose} width={620}>
+      {activity.mandatory && (
+        <div className="text-[12px] mb-4" style={{ color: T.gray600 }}>
+          This is a mandatory plan activity — its status can still be changed at any time.
+        </div>
+      )}
+      <StatusFields status={status} setStatus={setStatus} fields={fields} setField={setField} />
+
+      <Field label="Select provider">
         <select className={selectCls} style={selectStyle} value={provider} onChange={(e) => setProvider(e.target.value)}>
+          <option value="">Unspecified</option>
           {PROVIDERS.map((p) => <option key={p}>{p}</option>)}
         </select>
       </Field>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Status" required>
-          <select className={selectCls} style={selectStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option>Required</option><option>Undefined</option><option>On</option><option>Off</option>
-          </select>
-        </Field>
-        <Field label="Set required week" required>
-          <input type="date" className={selectCls} style={selectStyle} value={week} onChange={(e) => setWeek(e.target.value)} />
-        </Field>
-      </div>
-      <Field label="Assign to">
-        <select className={selectCls} style={selectStyle} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-          <option value="">Unassigned</option>
-          {filledTeam.map((t) => {
-            const m = MEMBER_POOL.find((x) => x.id === t.memberId);
-            return <option key={t.id} value={m.id}>{m.name} ({t.label})</option>;
-          })}
-        </select>
-        {filledTeam.length === 0 && (
-          <div className="text-[12px] mt-1" style={{ color: T.gray600 }}>Add team members first to be able to assign this activity to someone.</div>
-        )}
-      </Field>
-      <Field label="Write your comment" required>
+
+      <AssignToField assignee={assignee} setAssignee={setAssignee} team={team} />
+
+      <Field label="Write your comment">
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
@@ -652,15 +824,10 @@ function AddActivityModal({ onClose, onAdd, team }) {
           style={{ ...selectStyle, minHeight: 90, resize: "vertical" }}
         />
       </Field>
-      <button className="flex items-center gap-2 text-[14px] font-semibold mb-2" style={{ color: T.primary }}>
-        <Plus size={14} /> Add document
-      </button>
-      <div className="flex justify-between mt-6">
+
+      <div className="flex justify-end gap-3 mt-6">
         <Btn variant="neutral" onClick={onClose}>Cancel</Btn>
-        <div className="flex gap-3">
-          <Btn variant="outline" onClick={submit}>Save as Draft</Btn>
-          <Btn onClick={submit}>Add activity</Btn>
-        </div>
+        <Btn disabled={!status} onClick={submit}>Save changes</Btn>
       </div>
     </Modal>
   );
@@ -668,10 +835,25 @@ function AddActivityModal({ onClose, onAdd, team }) {
 
 /* ================= activities / team panels ================= */
 
-function ActivityRow({ activity }) {
+function ResolvedIcon({ status }) {
+  if (status === "completed") return <CheckCircle2 size={22} style={{ color: T.success }} />;
+  if (status === "declined") return <UserX size={22} style={{ color: "#DC5B5B" }} />;
+  return <XCircle size={22} style={{ color: "#DC5B5B" }} />;
+}
+
+function ActivityRow({ activity, onClick }) {
   const memberName = MEMBER_POOL.find((m) => m.id === activity.assigneeId)?.name;
+  const cfg = STATUS_CONFIG[activity.status] || STATUS_CONFIG.undefined;
+  const isResolved = cfg.group === "resolved";
+  const fieldValue = cfg.field ? activity[cfg.field.key] : null;
+  const displayDate = fieldValue ? formatFieldValue(cfg.field.type, fieldValue) : null;
+
   return (
-    <div className="border rounded px-4 py-3 flex items-center justify-between gap-3" style={{ borderColor: T.border, backgroundColor: T.light }}>
+    <button
+      onClick={onClick}
+      className="w-full text-left border rounded px-4 py-3 flex items-center justify-between gap-3 transition-shadow hover:shadow-sm"
+      style={{ borderColor: T.border, backgroundColor: T.light }}
+    >
       <div className="flex items-center gap-3 min-w-0">
         <Calendar size={16} style={{ color: T.gray500 }} className="shrink-0" />
         <div className="min-w-0">
@@ -680,19 +862,35 @@ function ActivityRow({ activity }) {
             <span className="font-semibold" style={{ color: T.bodyText }}>{activity.title}</span>
           </div>
           {activity.link && <div className="text-[12px] underline" style={{ color: T.primary }}>{activity.link}</div>}
-          {memberName && <div className="text-[12px] mt-0.5" style={{ color: T.gray600 }}>Assigned to {memberName}</div>}
+          {!isResolved && displayDate && (
+            <div className="text-[12px] mt-0.5" style={{ color: T.gray600 }}>
+              {displayDate}
+              {cfg.extra && activity.hour ? ` · ${activity.hour}` : ""}
+              {cfg.extra && activity.location ? ` · ${activity.location}` : ""}
+            </div>
+          )}
+          {memberName && !isResolved && <div className="text-[12px] mt-0.5" style={{ color: T.gray600 }}>Assigned to {memberName}</div>}
         </div>
       </div>
-      <Badge tone={activity.status === "required" ? "teal" : activity.status === "resolved" ? "green" : "gray"}>
-        {activity.status}
-      </Badge>
-    </div>
+
+      {isResolved ? (
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right">
+            {displayDate && <div className="text-[13px] font-medium" style={{ color: T.bodyText }}>{displayDate}</div>}
+            {memberName && <div className="text-[12px]" style={{ color: T.gray600 }}>{memberName}</div>}
+          </div>
+          <ResolvedIcon status={activity.status} />
+        </div>
+      ) : (
+        <Badge tone={cfg.tone}>{cfg.label}</Badge>
+      )}
+    </button>
   );
 }
 
-function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan }) {
-  const todo = activities.filter((a) => a.category === "todo");
-  const resolved = activities.filter((a) => a.category === "resolved");
+function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan, onEditActivity }) {
+  const todo = activities.filter((a) => statusGroup(a.status) === "todo");
+  const resolved = activities.filter((a) => statusGroup(a.status) === "resolved");
   const nothingYet = !planConfigured && activities.length === 0;
 
   return (
@@ -718,7 +916,7 @@ function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan }) {
         <>
           <div className="text-[13px] font-bold mb-2" style={{ color: T.bodyText }}>To do</div>
           <div className="space-y-2">
-            {todo.map((a) => <ActivityRow key={a.id} activity={a} />)}
+            {todo.map((a) => <ActivityRow key={a.id} activity={a} onClick={() => onEditActivity(a.id)} />)}
             {todo.length === 0 && <div className="text-[13px]" style={{ color: T.gray600 }}>Nothing to do right now.</div>}
           </div>
         </>
@@ -729,7 +927,7 @@ function ActivitiesPanel({ activities, planConfigured, onAdd, onOpenSetPlan }) {
         <div className="text-[13px]" style={{ color: T.gray600 }}>There are no resolved activities on your agenda.</div>
       ) : (
         <div className="space-y-2">
-          {resolved.map((a) => <ActivityRow key={a.id} activity={a} />)}
+          {resolved.map((a) => <ActivityRow key={a.id} activity={a} onClick={() => onEditActivity(a.id)} />)}
         </div>
       )}
     </div>
@@ -847,7 +1045,7 @@ function StubCard({ title, desc, cta }) {
 
 const TABS = ["Overview", "PZP", "Questionnaires", "Activities", "Comments", "Team", "Messages"];
 
-function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddActivity }) {
+function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddActivity, onOpenEditActivity }) {
   const [tab, setTab] = useState("overview");
 
   return (
@@ -910,6 +1108,7 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
                     planConfigured={caremap.planConfigured}
                     onAdd={onOpenAddActivity}
                     onOpenSetPlan={onOpenSetPlan}
+                    onEditActivity={onOpenEditActivity}
                   />
                 </div>
                 <div className="space-y-6">
@@ -940,8 +1139,9 @@ function CaremapDetail({ caremap, back, onOpenSetPlan, onOpenAssign, onOpenAddAc
 export default function CaremapsPrototype() {
   const [screen, setScreen] = useState("start");
   const [caremap, setCaremap] = useState(null);
-  const [modal, setModal] = useState(null); // 'create' | 'setPlan' | 'assign' | 'addActivity'
+  const [modal, setModal] = useState(null); // 'create' | 'setPlan' | 'assign' | 'addActivity' | 'editActivity'
   const [assignFixedRole, setAssignFixedRole] = useState(null);
+  const [editingActivityId, setEditingActivityId] = useState(null);
 
   const createCaremap = (unit, template) => {
     setCaremap({
@@ -1023,15 +1223,35 @@ export default function CaremapsPrototype() {
           id: `a-${Date.now()}`,
           title: form.type,
           cadence: "(1/1)",
-          status: form.status.toLowerCase(),
-          category: "todo",
+          status: form.status,
           assigneeId: form.assignee || null,
           comment: form.comment,
           provider: form.provider,
+          ...form.fields,
         },
       ],
     }));
   };
+
+  // Any activity — mandatory plan item or custom — can have its status (and
+  // status-specific field) changed at any time via the edit modal.
+  const updateActivity = (id, patch) => {
+    setCaremap((c) => ({
+      ...c,
+      activities: c.activities.map((a) =>
+        a.id === id
+          ? { ...a, status: patch.status, provider: patch.provider, comment: patch.comment, assigneeId: patch.assigneeId, ...patch.fields }
+          : a
+      ),
+    }));
+  };
+
+  const openEditActivity = (id) => {
+    setEditingActivityId(id);
+    setModal("editActivity");
+  };
+
+  const editingActivity = caremap?.activities.find((a) => a.id === editingActivityId) || null;
 
   return (
     <div style={{ fontFamily: T.fontFamily }}>
@@ -1045,6 +1265,7 @@ export default function CaremapsPrototype() {
           onOpenSetPlan={() => setModal("setPlan")}
           onOpenAssign={openAssign}
           onOpenAddActivity={() => setModal("addActivity")}
+          onOpenEditActivity={openEditActivity}
         />
       )}
 
@@ -1057,6 +1278,14 @@ export default function CaremapsPrototype() {
       )}
       {modal === "addActivity" && caremap && (
         <AddActivityModal onClose={() => setModal(null)} onAdd={addActivity} team={caremap.team} />
+      )}
+      {modal === "editActivity" && caremap && editingActivity && (
+        <EditActivityModal
+          activity={editingActivity}
+          team={caremap.team}
+          onClose={() => setModal(null)}
+          onSave={(patch) => updateActivity(editingActivity.id, patch)}
+        />
       )}
     </div>
   );
