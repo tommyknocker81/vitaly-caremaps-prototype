@@ -87,7 +87,7 @@ function defaultPlanToggles() {
 const STATUS_CONFIG = {
   undefined: { label: "Undefined", group: "todo", tone: "gray" },
   required: { label: "Required", group: "todo", tone: "teal", field: { key: "requiredMonth", label: "Set required month", type: "month" } },
-  planned: { label: "Planned", group: "todo", tone: "warning", field: { key: "planningMonth", label: "Set planning month", type: "month" } },
+  planned: { label: "Planned", group: "todo", tone: "info", field: { key: "planningMonth", label: "Set planning month", type: "month" } },
   scheduled: { label: "Scheduled", group: "todo", tone: "teal", field: { key: "scheduledDate", label: "Set date", type: "date" }, extra: true },
   completed: { label: "Completed", group: "resolved", field: { key: "completedDate", label: "Set completed date", type: "date" } },
   declined: { label: "Declined by patient", group: "resolved", field: { key: "declinedDate", label: "Set declined date", type: "date" } },
@@ -115,6 +115,7 @@ function mergePlanIntoActivities(existingActivities, toggles) {
         cadence: item.cadence,
         status: "undefined",
         mandatory: !item.toggle,
+        sub: item.sub,
       }
     );
   });
@@ -162,6 +163,7 @@ function Badge({ children, tone = "gray" }) {
     teal: { backgroundColor: T.primary, color: "#fff" },
     green: { backgroundColor: T.success, color: "#fff" },
     warning: { backgroundColor: T.warning, color: "#fff" },
+    info: { backgroundColor: "#DCEEF3", color: T.primary },
   };
   return (
     <span
@@ -854,6 +856,17 @@ function ActivityRow({ activity, onClick }) {
   const displayDate = fieldValue ? formatFieldValue(cfg.field.type, fieldValue) : null;
   const Icon = activity.link ? FileText : Calendar;
 
+  // Right-hand subtext under the badge: the status-specific date/time/
+  // location when set, otherwise the plan item's own due/cadence label
+  // (e.g. "Due: 2 weeks", "At activation") when it hasn't been touched yet.
+  const rightSubtext = displayDate
+    ? `${displayDate}${cfg.extra && activity.hour ? ` · ${activity.hour}` : ""}${cfg.extra && activity.location ? ` · ${activity.location}` : ""}`
+    : activity.sub || null;
+
+  // Who/where line under the title: assignee (+ provider if both are set),
+  // provider alone if only that's set, or "Unassigned" as the fallback.
+  const assignedLine = [memberName, activity.provider].filter(Boolean).join(" · ") || "Unassigned";
+
   return (
     <button
       onClick={onClick}
@@ -867,15 +880,11 @@ function ActivityRow({ activity, onClick }) {
             <span style={{ color: "rgba(0,0,0,0.5)" }}>{activity.cadence} </span>
             <span style={{ color: T.muted }}>{activity.title}</span>
           </div>
-          {activity.link && <div className="text-[13px] underline" style={{ color: T.primary }}>{activity.link}</div>}
-          {!isResolved && displayDate && (
-            <div className="text-[13px] mt-0.5" style={{ color: T.muted }}>
-              {displayDate}
-              {cfg.extra && activity.hour ? ` · ${activity.hour}` : ""}
-              {cfg.extra && activity.location ? ` · ${activity.location}` : ""}
-            </div>
+          {activity.link ? (
+            <div className="text-[13px] underline" style={{ color: T.primary }}>{activity.link}</div>
+          ) : (
+            !isResolved && <div className="text-[13px] underline" style={{ color: T.primary }}>{assignedLine}</div>
           )}
-          {memberName && !isResolved && <div className="text-[13px] mt-0.5" style={{ color: T.muted }}>Assigned to {memberName}</div>}
         </div>
       </div>
 
@@ -888,7 +897,10 @@ function ActivityRow({ activity, onClick }) {
           <ResolvedIcon status={activity.status} />
         </div>
       ) : (
-        <Badge tone={cfg.tone}>{cfg.label}</Badge>
+        <div className="text-right shrink-0">
+          <Badge tone={cfg.tone}>{cfg.label}</Badge>
+          {rightSubtext && <div className="text-[13px] mt-1.5" style={{ color: T.muted }}>{rightSubtext}</div>}
+        </div>
       )}
     </button>
   );
