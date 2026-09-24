@@ -1550,6 +1550,11 @@ function encounterTypeKey(item) {
 // Which SOURCE_CONFIG source contributed a given item — used by the
 // "All organisations" global filter (looked up rather than stored on the
 // item, so the merge-on-arrival data shape doesn't need to change).
+// Every encounter on the server across all sources — the "Past (N)" pill count.
+// (All mock encounters are in the past.) Used to be a hardcoded 24 carried over
+// from the original prototype, which didn't match the 19 records actually here.
+const ENCOUNTER_TOTAL = SOURCE_CONFIG.reduce((sum, s) => sum + s.entries.length, 0);
+
 function sourceIdForItem(item) {
   return SOURCE_CONFIG.find((s) => s.entries.some((e) => e.id === item.id))?.id;
 }
@@ -1846,6 +1851,7 @@ const RESTRICTION_ENTRIES = [
     source: "GP Practice de Linde, Amersfoort",
     label: "Cardiopulmonary resuscitation | Yes, but with limitations",
     phase: "previous",
+    permitted: true,
     tone: "danger",
     detail: [
       { label: "Limits", value: "First consult with wife" },
@@ -1859,6 +1865,7 @@ const RESTRICTION_ENTRIES = [
     source: "GP Practice de Linde, Amersfoort",
     label: "Cardiopulmonary resuscitation | Not for resuscitation",
     phase: "current",
+    permitted: false,
     tone: "danger",
     detail: [
       { label: "Limits", value: "Agreed with patient and GP as part of the palliative care plan" },
@@ -2662,6 +2669,15 @@ const PX360_CATEGORIES = [
   { key: "financial", label: "Financial information", icon: Wallet, entries: FINANCIAL_ENTRIES },
 ];
 
+// What the Dashboard sub-tab shows until the viewer customises it — the six
+// cards and 2-column layout of the Figma dashboard frame (13561-53679).
+// Treatment restrictions isn't a card there: its current CPR decision is the
+// pinned banner above the grid instead.
+const DASHBOARD_DEFAULT = {
+  columns: 2,
+  visible: ["encounters", "diagnoses", "allergies", "medication", "procedures", "alerts"],
+};
+
 // Record-list categories' Filters drawer offers one "Type" section, built from
 // each record's `type` (or its label prefix before "|").
 function simpleTypeKey(item) {
@@ -2819,6 +2835,13 @@ Object.assign(NL, {
   "px360Phase:Stopped": "Gestopt",
   "px360Phase:All": "Alle",
   "No records in this view.": "Geen gegevens in deze weergave.",
+
+  // Dashboard / Detailed information sub-tabs
+  "Dashboard": "Dashboard",
+  "Detailed information": "Gedetailleerde informatie",
+  "Show all": "Alles tonen",
+  "Filter": "Filter",
+  "Treatment restriction": "Behandelbeperking",
 
   // Record field labels
   "Reaction": "Reactie",
@@ -3302,7 +3325,158 @@ function FilterAccordion({ title, open, onToggle, children }) {
   );
 }
 
-function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
+/* ---------- PX360 Dashboard sub-tab (Figma 13561-53679) ---------- */
+
+// How many of a category's most recent records a Dashboard card shows; the
+// rest are one click away via "Show all", which opens the Detailed view.
+const DASHBOARD_CARD_LIMIT = 3;
+
+// The pinned red strip above the Dashboard grid: the patient's current CPR
+// decision (Figma node 13561-53814). Check for "permitted", X otherwise.
+function TreatmentRestrictionBanner({ entry, onOpen }) {
+  const { t } = useLanguage();
+  const [type, value] = t(entry.label).split("|").map((x) => x.trim());
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full flex items-center gap-2 text-left rounded-[4px] border px-[17px] pt-[9px] pb-[9px] mb-6"
+      style={{ backgroundColor: "#FFEBEB", borderColor: "#C74139" }}
+    >
+      <span className="flex items-center gap-2 shrink-0">
+        <IdCard size={22} style={{ color: "#C74139" }} />
+        <span className="text-[16px] font-bold uppercase tracking-[1px] leading-[1.2]" style={{ color: T.bodyText }}>
+          {t("Treatment restriction")}
+        </span>
+      </span>
+      <span className="flex-1 min-w-0 flex items-center gap-2 pl-4 text-[16px] font-semibold leading-[1.2]" style={{ color: T.bodyText }}>
+        <span className="whitespace-nowrap">{type}</span>
+        <span className="px-1" style={{ color: T.gray500 }}>|</span>
+        {entry.permitted
+          ? <Check size={20} strokeWidth={2.5} style={{ color: "#34C759" }} />
+          : <X size={20} strokeWidth={2.5} style={{ color: "#C74139" }} />}
+        <span className="truncate">{value}</span>
+      </span>
+      <span className="text-[14px] shrink-0" style={{ color: T.bodyText }}>{entry.date}</span>
+    </button>
+  );
+}
+
+// One record inside a Dashboard card (Figma "BGZ header" item): date +
+// severity, source on the right, then the label and an expand chevron. Rows
+// are divided by a rule rather than boxed like the Detailed view's cards.
+function DashboardRow({ date, source, label, tone, severity, isExpanded, onToggle, isLast, children }) {
+  const color = tone === "danger" ? "#C74139" : T.bodyText;
+  return (
+    <div className={isLast ? "" : "border-b"} style={{ borderColor: T.border }}>
+      <button onClick={onToggle} className="w-full text-left py-2">
+        <div className="flex items-center justify-between text-[14px] leading-[1.5]" style={{ color: T.gray600 }}>
+          <span className="flex items-center">
+            {date}
+            {severity && <SeverityDots severity={severity} />}
+          </span>
+          <span className="text-right">{source}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[14px] font-semibold leading-[1.2]" style={{ color }}>{label}</span>
+          <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="shrink-0">
+            <ChevronDown size={20} style={{ color: T.primary }} />
+          </motion.span>
+        </div>
+      </button>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            key="detail"
+            className="overflow-hidden mb-2 rounded-[4px]"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// A Dashboard category card (Figma "BGZ category", 13561-53836): icon + title
+// header that collapses the card, the category's status pills + Filter, and
+// its most recent records.
+function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed, onToggleCollapsed, onFilter, onShowAll, totalCount, loading, children }) {
+  const { t } = useLanguage();
+  const Icon = category.icon;
+  return (
+    <div className="bg-white border rounded-[4px] overflow-hidden" style={{ borderColor: T.border }}>
+      <button
+        onClick={onToggleCollapsed}
+        className={`w-full flex items-center justify-between px-4 pt-4 pb-[17px] text-left ${collapsed ? "" : "border-b"}`}
+        style={{ borderColor: T.border }}
+      >
+        <span className="flex items-center gap-2">
+          <Icon size={22} style={{ color: T.primary }} />
+          <span className="text-[16px] font-bold uppercase tracking-[1px] leading-[1.2]" style={{ color: T.primary }}>{t(category.label)}</span>
+        </span>
+        <motion.span animate={{ rotate: collapsed ? 0 : 180 }} transition={{ duration: 0.2, ease: "easeInOut" }}>
+          <ChevronDown size={22} style={{ color: T.primary }} />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            key="body"
+            className="overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+          >
+            <div className="px-4 pt-2 pb-3">
+              <div className="flex items-center justify-between h-8 mb-1">
+                <div className="flex items-center gap-1">
+                  {phases.map((p) => {
+                    const active = p.key === activePhase;
+                    return (
+                      <button
+                        key={p.key}
+                        onClick={() => onPhaseChange(p.key)}
+                        className={`text-[14px] leading-[1.5] whitespace-nowrap rounded-full ${active ? "font-semibold px-[9px] py-[3px]" : "px-2 py-[2px]"}`}
+                        style={{ color: T.bodyText, backgroundColor: active ? T.lightBg : "transparent" }}
+                      >
+                        {t(p.label, "px360Phase")} ({p.count})
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={onFilter} className="flex items-center gap-1 text-[14px]" style={{ color: T.bodyText }}>
+                  <Filter size={15} style={{ color: T.primary, fill: T.primary }} /> {t("Filter")}
+                </button>
+              </div>
+              {loading ? (
+                <div className="flex items-center gap-2 text-sm py-4" style={{ color: T.gray500 }}>
+                  <LoaderCircle size={16} className="animate-spin" style={{ color: T.primary }} />
+                  {t("Loading first results…")}
+                </div>
+              ) : totalCount === 0 ? (
+                <div className="text-sm py-4" style={{ color: T.gray500 }}>{t("No records in this view.")}</div>
+              ) : (
+                children
+              )}
+              {!loading && totalCount > DASHBOARD_CARD_LIMIT && (
+                <button onClick={onShowAll} className="mt-2 flex items-center gap-1 text-[14px] font-semibold" style={{ color: T.primary }}>
+                  {t("Show all")} ({totalCount}) <ChevronRight size={15} />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange }) {
   const { t } = useLanguage();
   const [runId, setRunId] = useState(0);
   const [sourceStatus, setSourceStatus] = useState({});
@@ -3491,11 +3665,13 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
     (careProviderQuery.trim() ? 1 : 0);
 
   const category = PX360_CATEGORIES.find((c) => c.key === activeCategory);
-  const phaseKeys = category.phases ? category.phases.map((p) => p.key) : ["all"];
-  const activePhase = phaseByCategory[activeCategory] ?? phaseKeys[0];
-  const setActivePhase = (key) => setPhaseByCategory((prev) => ({ ...prev, [activeCategory]: key }));
+  const phaseOf = (cat) => phaseByCategory[cat.key] ?? (cat.phases ? cat.phases[0].key : "all");
+  const setPhaseOf = (catKey, key) => setPhaseByCategory((prev) => ({ ...prev, [catKey]: key }));
+  const typeFiltersOf = (cat) => recordTypeFilters[cat.key] ?? new Set();
 
-  const activeTypeFilters = recordTypeFilters[activeCategory] ?? new Set();
+  const activePhase = phaseOf(category);
+  const setActivePhase = (key) => setPhaseOf(activeCategory, key);
+  const activeTypeFilters = typeFiltersOf(category);
   const toggleRecordType = (key) => {
     setRecordTypeFilters((prev) => {
       const next = new Set(prev[activeCategory] ?? []);
@@ -3506,18 +3682,27 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
   const clearRecordTypes = () => setRecordTypeFilters((prev) => ({ ...prev, [activeCategory]: new Set() }));
 
   // A record category's list: the page-level organisation/time dropdowns and
-  // the selected status pill, then the drawer's Type filter, then sort.
+  // the selected status pill, then the drawer's Type filter, then sort. Shared
+  // by the Detailed view (active category) and every Dashboard card, so both
+  // always show the same records for the same pill.
   const orgNameAllowed = (name) => !sourceFilter || SOURCE_CONFIG.some((s) => s.name === name && sourceFilter.has(s.id));
-  const recordsInView = category.entries
-    ? category.entries.filter((item) => orgNameAllowed(item.source) && recordWithinTimeWindow(item, timeFilter))
-    : [];
-  const recordsInPhase = recordsInView.filter((item) => activePhase === "all" || item.phase === activePhase);
-  const displayedRecords = recordsInPhase
-    .filter((item) => activeTypeFilters.size === 0 || activeTypeFilters.has(simpleTypeKey(item)))
-    .sort((a, b) => (sortOrder === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date)));
-  const recordPhases = category.phases
-    ? category.phases.map((p) => ({ ...p, count: recordsInView.filter((item) => item.phase === p.key).length }))
-    : [{ key: "all", label: "All", count: recordsInView.length }];
+  const recordListFor = (cat) => {
+    const phase = phaseOf(cat);
+    const types = typeFiltersOf(cat);
+    const inView = cat.entries.filter((item) => orgNameAllowed(item.source) && recordWithinTimeWindow(item, timeFilter));
+    const inPhase = inView.filter((item) => phase === "all" || item.phase === phase);
+    const displayed = inPhase
+      .filter((item) => types.size === 0 || types.has(simpleTypeKey(item)))
+      .sort((a, b) => (sortOrder === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date)));
+    const phases = cat.phases
+      ? cat.phases.map((p) => ({ ...p, count: inView.filter((item) => item.phase === p.key).length }))
+      : [{ key: "all", label: "All", count: inView.length }];
+    return { phases, phase, inPhase, displayed };
+  };
+  const activeRecords = category.entries ? recordListFor(category) : null;
+  const recordsInPhase = activeRecords?.inPhase ?? [];
+  const displayedRecords = activeRecords?.displayed ?? [];
+  const recordPhases = activeRecords?.phases ?? [];
 
   // Filters are a pure view over whatever has already merged in — they never
   // change what's fetched, only what's shown. Source/time come from the
@@ -3550,8 +3735,113 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
     return st?.state === "loaded" ? sum + (st.total - st.fetched) : sum;
   }, 0);
 
+  // ---- Dashboard sub-tab ----
+  const [collapsedCards, setCollapsedCards] = useState({});
+  const layout = DASHBOARD_DEFAULT;
+  const dashboardCategories = PX360_CATEGORIES.filter((c) => layout.visible.includes(c.key));
+  const dashboardColumns = Array.from({ length: layout.columns }, (_, col) =>
+    dashboardCategories.filter((_, i) => i % layout.columns === col)
+  );
+  const currentCpr = RESTRICTION_ENTRIES
+    .filter((e) => e.phase === "current" && e.permitted !== undefined)
+    .sort((a, b) => parseDMY(b.date) - parseDMY(a.date))[0];
+
+  // "Show all" / "Filter" / the banner jump into the Detailed view on that
+  // category, back at the top of the page.
+  const openInDetailed = (catKey, { withFilters = false } = {}) => {
+    setActiveCategory(catKey);
+    onViewChange("detailed");
+    if (scrollRef?.current) scrollRef.current.scrollTop = 0;
+    if (withFilters) setFiltersOpen(true);
+  };
+
+  const renderDashboardCard = (cat) => {
+    const common = {
+      category: cat,
+      collapsed: !!collapsedCards[cat.key],
+      onToggleCollapsed: () => setCollapsedCards((prev) => ({ ...prev, [cat.key]: !prev[cat.key] })),
+      onFilter: () => openInDetailed(cat.key, { withFilters: true }),
+      onShowAll: () => openInDetailed(cat.key),
+    };
+    if (cat.key === "encounters") {
+      const items = displayedItems.slice(0, DASHBOARD_CARD_LIMIT);
+      return (
+        <DashboardCard
+          key={cat.key}
+          {...common}
+          phases={[{ key: "past", label: "Past", count: ENCOUNTER_TOTAL }, { key: "planned", label: "Planned", count: 0 }]}
+          activePhase={encountersPhase}
+          onPhaseChange={(key) => setPhaseOf("encounters", key)}
+          loading={encountersPhase === "past" && visibleItems.length === 0}
+          // Same known total as the Past pill, so the two never disagree while
+          // later sources are still loading.
+          totalCount={encountersPhase === "past" ? ENCOUNTER_TOTAL : 0}
+        >
+          {items.map((item, i) => (
+            <DashboardRow
+              key={item.id}
+              date={item.date}
+              source={<SourceLabel source={item.source} />}
+              label={t(item.label)}
+              isExpanded={!!expandedIds[item.id]}
+              onToggle={() => toggleExpand(item.id)}
+              isLast={i === items.length - 1}
+            >
+              {(ENCOUNTER_DETAILS[item.id] || genericDetail(item, t)).map((d, k) => (
+                <OrgDetailBlock key={k} detail={d} isFirst={k === 0} />
+              ))}
+            </DashboardRow>
+          ))}
+        </DashboardCard>
+      );
+    }
+    const list = recordListFor(cat);
+    const items = list.displayed.slice(0, DASHBOARD_CARD_LIMIT);
+    return (
+      <DashboardCard
+        key={cat.key}
+        {...common}
+        phases={list.phases}
+        activePhase={list.phase}
+        onPhaseChange={(key) => setPhaseOf(cat.key, key)}
+        loading={false}
+        totalCount={list.displayed.length}
+      >
+        {items.map((item, i) => (
+          <DashboardRow
+            key={item.id}
+            date={item.date}
+            source={item.source}
+            label={t(item.label)}
+            tone={item.tone}
+            severity={item.severity}
+            isExpanded={!!expandedIds[item.id]}
+            onToggle={() => toggleExpand(item.id)}
+            isLast={i === items.length - 1}
+          >
+            <RecordDetailBlock item={item} />
+          </DashboardRow>
+        ))}
+      </DashboardCard>
+    );
+  };
+
   return (
     <>
+    {view === "dashboard" && (
+      <div>
+        {currentCpr && <TreatmentRestrictionBanner entry={currentCpr} onOpen={() => openInDetailed("treatment")} />}
+        <div className="flex items-start gap-4">
+          {dashboardColumns.map((cats, col) => (
+            <div key={col} className="flex-1 min-w-0 flex flex-col gap-4">
+              {cats.map(renderDashboardCard)}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {view === "detailed" && (
     <div className="grid grid-cols-[300px_1fr] gap-10">
       {/* Tall enough for all BgZ categories to scroll within the rail itself
           when the page is scrolled down a long Encounters list. */}
@@ -3592,8 +3882,8 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
         <CategoryToolbar
           phases={[
             // Past is the encounter history's known server-side total, not
-            // what has loaded so far — same hardcoded 24 as before.
-            { key: "past", label: "Past", count: 24 },
+            // what has loaded so far.
+            { key: "past", label: "Past", count: ENCOUNTER_TOTAL },
             { key: "planned", label: "Planned", count: 0 },
           ]}
           activePhase={encountersPhase}
@@ -3800,6 +4090,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
         )}
       </div>
     </div>
+    )}
 
     {typeof document !== "undefined" && createPortal(
       <AnimatePresence>
@@ -4013,6 +4304,32 @@ function TimeFilterDropdown({ value, onChange }) {
   );
 }
 
+// Segmented "Dashboard | Detailed information" control (Figma 13561-53714).
+function Px360ViewSwitch({ value, onChange }) {
+  const { t } = useLanguage();
+  const options = [
+    { key: "dashboard", label: "Dashboard" },
+    { key: "detailed", label: "Detailed information" },
+  ];
+  return (
+    <div className="flex items-center gap-6 rounded-[4px] px-3 py-[3px]" style={{ backgroundColor: T.lightBg }}>
+      {options.map((o) => {
+        const active = o.key === value;
+        return (
+          <button
+            key={o.key}
+            onClick={() => onChange(o.key)}
+            className={`text-[14px] leading-[1.5] rounded-[3.2px] whitespace-nowrap ${active ? "font-semibold px-[9px] py-[5px] bg-white border" : "px-2 py-1"}`}
+            style={active ? { color: T.bodyText, borderColor: T.light, boxShadow: "0 2px 4px rgba(0,0,0,0.08)" } : { color: T.bodyText }}
+          >
+            {t(o.label)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // The screen shown when PatientBar's PX360 tab is clicked — reuses this
 // app's own Sidebar/TopHeader/PatientBar rather than duplicating the
 // standalone encounters-prototype's own shell.
@@ -4020,6 +4337,9 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
   const contentScrollRef = useRef(null);
   const [sourceFilter, setSourceFilter] = useState(() => new Set(SOURCE_CONFIG.map((s) => s.id)));
   const [timeFilter, setTimeFilter] = useState("all");
+  // "dashboard" (default, per the Figma BGZ viewer frame) or "detailed" —
+  // the rail + full-list view that PX360 used to be on its own.
+  const [view, setView] = useState("dashboard");
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: T.fontFamily }}>
@@ -4029,15 +4349,18 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
         <PatientBar back={onBack} activeTab="PX360" onTabClick={onNavigate} />
         <div ref={contentScrollRef} className="flex-1 overflow-y-auto" style={{ backgroundColor: T.light }}>
           <div className="px-8 py-6">
-            <div className="flex items-center justify-between mb-6">
+            {/* Title row + Dashboard/Detailed switch, then the page-level
+                filters on their own row — Figma 13561-53708 / 13561-53722. */}
+            <div className="flex items-center justify-between">
               {/* "Patient 360" is a product/module name, like "CAREMAPS" elsewhere — deliberately not translated */}
-              <h2 className="text-[22px] font-semibold" style={{ color: T.bodyText }}>Patient 360</h2>
-              <div className="flex items-center gap-4">
-                <OrgFilterDropdown selected={sourceFilter} onChange={setSourceFilter} />
-                <TimeFilterDropdown value={timeFilter} onChange={setTimeFilter} />
-              </div>
+              <h2 className="text-[24px] font-semibold leading-[1.2]" style={{ color: T.black }}>Patient 360</h2>
+              <Px360ViewSwitch value={view} onChange={setView} />
             </div>
-            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} />
+            <div className="flex items-center justify-end gap-6 mt-4 mb-6">
+              <OrgFilterDropdown selected={sourceFilter} onChange={setSourceFilter} />
+              <TimeFilterDropdown value={timeFilter} onChange={setTimeFilter} />
+            </div>
+            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} />
           </div>
         </div>
       </div>

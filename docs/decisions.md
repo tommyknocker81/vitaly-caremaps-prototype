@@ -1010,3 +1010,21 @@ organisations"), which the user said to leave out as likely mistranslations; add
 content to the main `NL` dictionary (~200 mock-data lines far away from the data they translate),
 so it's merged in from a block beside the records instead.
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
+
+**2026-09-24 — Added a Dashboard sub-tab to PX360 (default), rendered by the same section as Detailed information**
+Why: user asked for "Dashboard" and "Detailed information" sub-tabs (Figma 13561-53679), with
+Dashboard as the default, showing the most recent information from each category, plus the pinned
+treatment-restriction banner. The timeline and use-case switcher were explicitly left for later.
+The user agreed to show the 3 most recent records per card with "Show all (N)" (opens that
+category in the Detailed view) instead of scrolling inside each card. Scrolling inside a card
+fights the page's own scrolling, and a fixed number of rows keeps a multi-column grid tidy. The user
+also wanted the card status pills to work. The Dashboard is rendered inside `EncountersSection`
+rather than as its own component, so it shares one owner of the fetch simulation and of the
+pill/filter/expanded state. A pill or expanded row chosen in one view is still there in the other.
+Also replaced Encounters' hardcoded "Past (24)" with a count derived from the data (21), since the
+Dashboard's "Show all (N)" made the mismatch with the actual mock data visible.
+Ruled out: a separate Dashboard component with its own copy of the fetch (two unrelated loading
+states for the same five organisations); scrolling inside cards (see above); keeping 24 (a number
+that doesn't match any list the user can open).
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
+

@@ -1,6 +1,6 @@
 # PX360 tab (native port of vitaly-encounters-prototype)
 
-**Status:** In progress — BgZ categories done; Dashboard and Customize view next
+**Status:** In progress — BgZ categories and Dashboard done; Customize view next
 
 ## What it does
 
@@ -23,11 +23,20 @@ Financial information. Every category except Encounters shows static (not live-f
 records — 3–5 each, all about this patient — with the same expandable cards, status pills, sort,
 and Filters drawer as Encounters.
 
-**Planned next (agreed with the user, built one section at a time):** a Dashboard / Detailed
-information sub-tab switch, with Dashboard as the default (Figma 13561-53679, without the timeline
-or use-case switcher for now), then a "Customize view" modal (Figma 12326-242709) with 1/2/3-column
-layouts and per-category toggles. The layout should survive a reload and be cleared by Reset demo.
-Filters inside the modal ("Set filter") come later.
+PX360 opens on a **Dashboard** sub-tab (Figma 13561-53679). A "Dashboard | Detailed information"
+switch sits next to the "Patient 360" title. Detailed information is the left-rail view described
+above. The Dashboard shows:
+- a pinned red **treatment restriction** banner with the patient's current CPR decision ("Not for
+  resuscitation"), which opens Treatment restrictions in the Detailed view when clicked;
+- a 2-column grid of category cards (by default the same six as the Figma frame: Encounters,
+  Complaints and diagnoses, Allergies, Medication, Procedures, Alerts). Each card shows the 3 most
+  recent records, working status pills, a Filter link, and "Show all (N)" when there are more. Records expand in place.
+  The card header collapses the card.
+
+**Planned next:** a "Customize view" modal (Figma 12326-242709) with 1/2/3-column layouts and
+per-category toggles. The layout should survive a reload and be cleared by Reset demo. Filters
+inside the modal ("Set filter") come later. The Figma frame's timeline and use-case switcher are
+deliberately left out for now.
 
 ## Implementation notes
 
@@ -218,6 +227,32 @@ Filters inside the modal ("Set filter") come later.
   - Rail labels now use CSS `uppercase` on the normal title-case label (the old separate
     `"ENCOUNTERS"`-style dictionary keys were removed). The rail scrolls within itself
     (`max-h-[calc(100vh-190px)]`) once the page is scrolled down a long Encounters list.
+
+- **Dashboard sub-tab** (added 2026-09-24). `Px360Screen` holds `view` ("dashboard" default |
+  "detailed") and renders `Px360ViewSwitch`. The org/time dropdowns moved to their own row under
+  the title, as in Figma. `EncountersSection` renders either view, because the Dashboard needs the
+  same shared fetch, merged encounters, per-category status pills, type filters and expanded-row
+  state. Keeping one owner means a pill picked on a card is still selected in the Detailed view, and
+  the reverse. `recordListFor(cat)` is the single place a record category's list is computed
+  (org/time dropdowns → status pill → Type filter → sort), used by both views.
+  - Components: `DashboardCard` (Figma "BGZ category" 13561-53836), `DashboardRow` (its "BGZ header"
+    item: rows split by a rule, label in body colour, not primary), and `TreatmentRestrictionBanner`
+    (13561-53814; `#FFEBEB` / `#C74139` come from Figma exactly and differ from the app's own
+    `T.danger`). The banner picks the most recent `phase: "current"` restriction that has a
+    `permitted` flag (only the CPR records have one), and shows a green check if permitted or a
+    red X if not.
+  - The card limit is `DASHBOARD_CARD_LIMIT = 3`, agreed with the user instead of scrolling
+    inside cards. "Show all" and "Filter" call `openInDetailed(catKey)`, which switches the view,
+    selects the category and scrolls to the top ("Filter" also opens the drawer).
+  - `DASHBOARD_DEFAULT` (`columns: 2` plus the six visible keys) is a constant for now. The
+    Customize view will make it state saved in localStorage. Cards go into columns round-robin in
+    `PX360_CATEGORIES` order.
+  - The Encounters "Past (N)" count is now `ENCOUNTER_TOTAL` (every record across `SOURCE_CONFIG`,
+    currently 21) instead of the hardcoded 24 from the original prototype, which never matched the
+    mock data. That became visible once the Dashboard showed "Show all (N)" next to it.
+  - Icons are lucide equivalents rather than the Figma file's own SVGs, the same as the rest of this
+    app. The Figma "NEW" tags on some card titles were left out, since they read as design-review
+    markers, not product UI.
 
 ## Open questions
 
