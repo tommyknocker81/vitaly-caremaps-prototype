@@ -1028,3 +1028,20 @@ states for the same five organisations); scrolling inside cards (see above); kee
 that doesn't match any list the user can open).
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
 
+**2026-09-24 — Customize view: per-column panels with drag and drop, layout saved with the demo state**
+Why: user asked for the Figma "Edit dashboard" modal (12326-242709). It needs 1/2/3-column layouts
+and per-category toggles, and categories must be draggable, "which will move the position of the
+card either on the left or right column as well as the order in the column". The modal's panels
+therefore *are* the Dashboard's columns, and the layout is stored per column
+(`{ columns: [[{ key, visible }]] }`) rather than as one ordered list plus a column count. Hidden
+categories keep their place, so switching one back on puts it where it was. The user asked for the
+layout to survive a reload and be cleared by Reset demo, so it's part of the existing
+`saveDemoState` blob. Drag and drop uses native HTML5 drag events instead of adding a library: this
+single-file prototype has no DnD dependency, and one modal of rows doesn't justify one.
+Ruled out: one ordered list dealt into N columns (then dragging a card to "the right column"
+couldn't be expressed directly, and cards would jump columns whenever any other card changed); a
+DnD library (new dependency for one modal); making Treatment restrictions' toggle control the
+pinned banner, because a restriction like "Not for resuscitation" shouldn't be something a viewer
+can accidentally hide. It's offered as an ordinary card instead, and the banner always shows.
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
+

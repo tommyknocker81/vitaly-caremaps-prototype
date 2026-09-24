@@ -10,7 +10,7 @@ import {
   MinusCircle, AlertTriangle, AlertCircle, ExternalLink, RefreshCw, ArrowUpDown, Filter, ArrowDown,
   HelpCircle, MessageSquare, ShieldAlert, ClipboardCheck, FileSignature, FlaskConical,
   ShieldCheck, FileX, LayoutList, LoaderCircle, Pill, ClipboardPlus, BriefcaseMedical, Flag,
-  Accessibility, HeartPulse, House, Users, Armchair, Syringe, IdCard, Wallet,
+  Accessibility, HeartPulse, House, Users, Armchair, Syringe, IdCard, Wallet, Settings, Grip,
 } from "lucide-react";
 import vitalyLogo from "./assets/vitaly-logo.png";
 
@@ -2671,12 +2671,55 @@ const PX360_CATEGORIES = [
 
 // What the Dashboard sub-tab shows until the viewer customises it — the six
 // cards and 2-column layout of the Figma dashboard frame (13561-53679).
-// Treatment restrictions isn't a card there: its current CPR decision is the
-// pinned banner above the grid instead.
-const DASHBOARD_DEFAULT = {
-  columns: 2,
-  visible: ["encounters", "diagnoses", "allergies", "medication", "procedures", "alerts"],
-};
+// Treatment restrictions' current CPR decision is always pinned as the banner
+// above the grid; it's also offered as an ordinary card (off by default).
+const DASHBOARD_DEFAULT_VISIBLE = ["encounters", "diagnoses", "allergies", "medication", "procedures", "alerts"];
+
+// Dashboard layout: `columns` is one array per column (1–3), each an ordered
+// list of { key, visible } — every category is always in exactly one column,
+// hidden or not, so the Customize view can place and toggle all of them.
+// Saved with the demo state (survives a reload; Reset demo restores this).
+function defaultDashboardLayout() {
+  const ordered = [
+    ...PX360_CATEGORIES.filter((c) => DASHBOARD_DEFAULT_VISIBLE.includes(c.key)),
+    ...PX360_CATEGORIES.filter((c) => !DASHBOARD_DEFAULT_VISIBLE.includes(c.key)),
+  ].map((c) => ({ key: c.key, visible: DASHBOARD_DEFAULT_VISIBLE.includes(c.key) }));
+  return { columns: dealIntoColumns(ordered, 2) };
+}
+
+// Round-robin into n columns, so reading order (left to right, then down)
+// is preserved when the column count changes.
+function dealIntoColumns(items, n) {
+  return Array.from({ length: n }, (_, col) => items.filter((_, i) => i % n === col));
+}
+
+// Row-major flatten — the inverse of dealIntoColumns.
+function flattenColumns(columns) {
+  const out = [];
+  const rows = Math.max(...columns.map((c) => c.length));
+  for (let r = 0; r < rows; r++) columns.forEach((c) => c[r] && out.push(c[r]));
+  return out;
+}
+
+// Visible cards are dealt first so they spread evenly across the new columns
+// instead of being pushed around by hidden categories in between.
+function changeColumnCount(layout, n) {
+  const flat = flattenColumns(layout.columns);
+  return { columns: dealIntoColumns([...flat.filter((i) => i.visible), ...flat.filter((i) => !i.visible)], n) };
+}
+
+// A saved layout from an older build may lack categories added since, or
+// name ones that no longer exist — keep it valid rather than discarding it.
+function normalizeDashboardLayout(saved) {
+  if (!saved?.columns?.length) return defaultDashboardLayout();
+  const known = new Set(PX360_CATEGORIES.map((c) => c.key));
+  const columns = saved.columns.map((col) => col.filter((item) => known.has(item.key)));
+  const present = new Set(columns.flat().map((item) => item.key));
+  PX360_CATEGORIES.forEach((c) => {
+    if (!present.has(c.key)) columns[columns.length - 1].push({ key: c.key, visible: false });
+  });
+  return { columns };
+}
 
 // Record-list categories' Filters drawer offers one "Type" section, built from
 // each record's `type` (or its label prefix before "|").
@@ -2842,6 +2885,13 @@ Object.assign(NL, {
   "Show all": "Alles tonen",
   "Filter": "Filter",
   "Treatment restriction": "Behandelbeperking",
+  "Customize view": "Weergave aanpassen",
+  "Edit dashboard": "Dashboard bewerken",
+  "Select the categories that you like to be visible on the dashboard. To re-order them, just drag & drop each category — also between columns.":
+    "Selecteer de categorieën die u op het dashboard wilt zien. Sleep een categorie om de volgorde te wijzigen — ook tussen kolommen.",
+  "1 column": "1 kolom",
+  "2 columns": "2 kolommen",
+  "3 columns": "3 kolommen",
 
   // Record field labels
   "Reaction": "Reactie",
@@ -3476,7 +3526,7 @@ function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed
   );
 }
 
-function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange }) {
+function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange, layout }) {
   const { t } = useLanguage();
   const [runId, setRunId] = useState(0);
   const [sourceStatus, setSourceStatus] = useState({});
@@ -3737,10 +3787,8 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
 
   // ---- Dashboard sub-tab ----
   const [collapsedCards, setCollapsedCards] = useState({});
-  const layout = DASHBOARD_DEFAULT;
-  const dashboardCategories = PX360_CATEGORIES.filter((c) => layout.visible.includes(c.key));
-  const dashboardColumns = Array.from({ length: layout.columns }, (_, col) =>
-    dashboardCategories.filter((_, i) => i % layout.columns === col)
+  const dashboardColumns = layout.columns.map((col) =>
+    col.filter((item) => item.visible).map((item) => PX360_CATEGORIES.find((c) => c.key === item.key))
   );
   const currentCpr = RESTRICTION_ENTRIES
     .filter((e) => e.phase === "current" && e.permitted !== undefined)
@@ -4304,6 +4352,174 @@ function TimeFilterDropdown({ value, onChange }) {
   );
 }
 
+// On/off switch as the Figma "switch-input" draws it: 32×16, primary fill
+// with a white knob when on, white with a 25% black outline/knob when off.
+function DashboardSwitch({ on, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={onChange}
+      className="w-8 h-4 rounded-[32px] p-[2px] flex items-center shrink-0 transition-colors"
+      style={on ? { backgroundColor: T.primary, justifyContent: "flex-end" } : { backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.25)" }}
+    >
+      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: on ? "#fff" : "rgba(0,0,0,0.25)" }} />
+    </button>
+  );
+}
+
+// Layout picker tile: a miniature of 1/2/3 columns (Figma 12326-242722).
+function LayoutTile({ columns, selected, onSelect, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-label={label}
+      aria-pressed={selected}
+      className="bg-white border rounded-[4px] p-4 w-[158px] h-[103px] flex gap-2"
+      style={{ borderColor: selected ? T.primary : T.border }}
+    >
+      {Array.from({ length: columns }, (_, i) => (
+        <span key={i} className="flex-1 h-full" style={{ backgroundColor: selected ? "rgba(0,128,163,0.3)" : "#D9D9D9" }} />
+      ))}
+    </button>
+  );
+}
+
+// "Customize view" → Edit dashboard modal (Figma 12326-242709): choose 1/2/3
+// columns, toggle each category, and drag categories to reorder them within
+// a column or move them to another one — each panel is one Dashboard column.
+// Edits a draft; nothing changes on the Dashboard until Save. The Figma
+// frame's "Timeline" tab and per-category "Set filter" are not built yet.
+function CustomizeDashboardModal({ layout, onSave, onClose }) {
+  const { t } = useLanguage();
+  const [draft, setDraft] = useState(layout);
+  const [dragKey, setDragKey] = useState(null);
+  // Where the dragged row would land: { col, index } (insert before index).
+  const [dropAt, setDropAt] = useState(null);
+
+  const toggle = (key) =>
+    setDraft((d) => ({ columns: d.columns.map((col) => col.map((item) => (item.key === key ? { ...item, visible: !item.visible } : item))) }));
+
+  const moveTo = (key, col, index) =>
+    setDraft((d) => {
+      const fromCol = d.columns.findIndex((c) => c.some((item) => item.key === key));
+      const fromIndex = d.columns[fromCol].findIndex((item) => item.key === key);
+      const moving = d.columns[fromCol][fromIndex];
+      const columns = d.columns.map((c) => c.filter((item) => item.key !== key));
+      // Removing the row first shifts later rows in the same column up by one.
+      const at = fromCol === col && fromIndex < index ? index - 1 : index;
+      columns[col].splice(at, 0, moving);
+      return { columns };
+    });
+
+  const endDrag = () => {
+    setDragKey(null);
+    setDropAt(null);
+  };
+
+  const onRowDragOver = (e, col, index) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const after = e.clientY > rect.top + rect.height / 2;
+    setDropAt({ col, index: after ? index + 1 : index });
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    // Rows sit inside the panel, which also handles drop — only apply once.
+    e.stopPropagation();
+    if (dragKey && dropAt) moveTo(dragKey, dropAt.col, dropAt.index);
+    endDrag();
+  };
+
+  const DropLine = () => <div className="h-[3px] -mt-[5px] mb-[2px] rounded-full relative z-10" style={{ backgroundColor: T.primary }} />;
+
+  return (
+    <Modal title="Edit dashboard" onClose={onClose} width={1100}>
+      <div className="-m-6 p-6" style={{ backgroundColor: T.light }}>
+        <p className="text-[14px] leading-[1.5] mb-6" style={{ color: T.bodyText }}>
+          {t("Select the categories that you like to be visible on the dashboard. To re-order them, just drag & drop each category — also between columns.")}
+        </p>
+        <div className="flex justify-center gap-6 mb-6">
+          {[1, 2, 3].map((n) => (
+            <LayoutTile
+              key={n}
+              columns={n}
+              selected={draft.columns.length === n}
+              onSelect={() => setDraft((d) => (d.columns.length === n ? d : changeColumnCount(d, n)))}
+              label={t(n === 1 ? "1 column" : `${n} columns`)}
+            />
+          ))}
+        </div>
+        <div className="flex items-start gap-2">
+          {draft.columns.map((col, c) => (
+            <div
+              key={c}
+              className="flex-1 min-w-0 bg-white border rounded-[4px] p-6 self-stretch"
+              style={{ borderColor: T.border }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                // Over the panel's empty space below the last row → append.
+                if (e.target === e.currentTarget) setDropAt({ col: c, index: col.length });
+              }}
+              onDrop={onDrop}
+            >
+              {/* Each row's wrapper carries the 8px spacing as padding, so
+                  the whole column is covered by drop targets with no gaps. */}
+              <div
+                className="flex flex-col -my-1 min-h-[48px]"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (e.target === e.currentTarget) setDropAt({ col: c, index: col.length });
+                }}
+              >
+                {col.map((item, i) => {
+                  const cat = PX360_CATEGORIES.find((x) => x.key === item.key);
+                  return (
+                    <div key={item.key} className="py-1" onDragOver={(e) => onRowDragOver(e, c, i)} onDrop={onDrop}>
+                      {dropAt && dragKey && dropAt.col === c && dropAt.index === i && <DropLine />}
+                      <div
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", item.key);
+                          setDragKey(item.key);
+                        }}
+                        onDragEnd={endDrag}
+                        className="h-10 flex items-center justify-between gap-2 px-3 rounded-[4px] cursor-grab active:cursor-grabbing select-none"
+                        style={{ backgroundColor: T.light, opacity: dragKey === item.key ? 0.4 : 1 }}
+                      >
+                        <span className="flex items-center min-w-0">
+                          <span className="w-8 flex justify-center shrink-0">
+                            <Grip size={18} style={{ color: T.gray600 }} />
+                          </span>
+                          <span className="px-2 text-[15px] leading-[1.5] truncate" style={{ color: T.bodyText }}>{t(cat.label)}</span>
+                        </span>
+                        <span className="px-2 flex items-center">
+                          <DashboardSwitch on={item.visible} onChange={() => toggle(item.key)} label={t(cat.label)} />
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {dropAt && dragKey && dropAt.col === c && dropAt.index === col.length && <DropLine />}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end items-center gap-6 -mx-6 -mb-6 mt-6 px-6 py-3 border-t" style={{ borderColor: T.border }}>
+        <button onClick={onClose} className="text-[15px] font-semibold px-2 py-[7px]" style={{ color: T.primary }}>{t("Cancel")}</button>
+        <Btn onClick={() => onSave(draft)}>{t("Save")}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 // Segmented "Dashboard | Detailed information" control (Figma 13561-53714).
 function Px360ViewSwitch({ value, onChange }) {
   const { t } = useLanguage();
@@ -4333,7 +4549,9 @@ function Px360ViewSwitch({ value, onChange }) {
 // The screen shown when PatientBar's PX360 tab is clicked — reuses this
 // app's own Sidebar/TopHeader/PatientBar rather than duplicating the
 // standalone encounters-prototype's own shell.
-function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona, onReset, unreadCount, onOpenNotifications, caseManagerPersonaId, sidebarCollapsed, onToggleSidebar }) {
+function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona, onReset, unreadCount, onOpenNotifications, caseManagerPersonaId, sidebarCollapsed, onToggleSidebar, dashboardLayout, onDashboardLayoutChange }) {
+  const { t } = useLanguage();
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const contentScrollRef = useRef(null);
   const [sourceFilter, setSourceFilter] = useState(() => new Set(SOURCE_CONFIG.map((s) => s.id)));
   const [timeFilter, setTimeFilter] = useState("all");
@@ -4354,16 +4572,33 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
             <div className="flex items-center justify-between">
               {/* "Patient 360" is a product/module name, like "CAREMAPS" elsewhere — deliberately not translated */}
               <h2 className="text-[24px] font-semibold leading-[1.2]" style={{ color: T.black }}>Patient 360</h2>
-              <Px360ViewSwitch value={view} onChange={setView} />
+              <div className="flex items-center gap-6">
+                {view === "dashboard" && (
+                  <button onClick={() => setCustomizeOpen(true)} className="flex items-center gap-[2px] text-[14px] leading-[1.5]" style={{ color: T.primary }}>
+                    <Settings size={20} style={{ color: T.primary }} /> {t("Customize view")}
+                  </button>
+                )}
+                <Px360ViewSwitch value={view} onChange={setView} />
+              </div>
             </div>
             <div className="flex items-center justify-end gap-6 mt-4 mb-6">
               <OrgFilterDropdown selected={sourceFilter} onChange={setSourceFilter} />
               <TimeFilterDropdown value={timeFilter} onChange={setTimeFilter} />
             </div>
-            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} />
+            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} layout={dashboardLayout} />
           </div>
         </div>
       </div>
+      {customizeOpen && (
+        <CustomizeDashboardModal
+          layout={dashboardLayout}
+          onSave={(next) => {
+            onDashboardLayoutChange(next);
+            setCustomizeOpen(false);
+          }}
+          onClose={() => setCustomizeOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -7516,6 +7751,8 @@ export default function CaremapsPrototype() {
   // that person's persona (see NotificationsScreen), same as the rest of the
   // persona-filtered app.
   const [notifications, setNotifications] = useState(() => loadSavedDemoState()?.notifications ?? SEED_NOTIFICATIONS);
+  // PX360 Dashboard layout (Customize view) — part of the saved demo state.
+  const [px360Layout, setPx360Layout] = useState(() => normalizeDashboardLayout(loadSavedDemoState()?.px360Layout));
   const unreadCount = notifications.filter((n) => n.recipientId === personaId && !n.read).length;
   // Set right before navigating to "detail" from a message notification's
   // "Open in Messages" button, so `CaremapDetail` mounts straight into the
@@ -7580,8 +7817,8 @@ export default function CaremapsPrototype() {
   // picks up where you left off. "Reset demo" (in the account menu) clears
   // this and returns to the app's true initial state.
   useEffect(() => {
-    saveDemoState({ screen, caremap, personaId, notifications });
-  }, [screen, caremap, personaId, notifications]);
+    saveDemoState({ screen, caremap, personaId, notifications, px360Layout });
+  }, [screen, caremap, personaId, notifications, px360Layout]);
 
   const resetDemo = () => {
     clearSavedDemoState();
@@ -7593,6 +7830,7 @@ export default function CaremapsPrototype() {
     setEditingContactId(null);
     setPersonaId("dr-henley");
     setNotifications(SEED_NOTIFICATIONS);
+    setPx360Layout(defaultDashboardLayout());
   };
 
   const createCaremap = (unit, template) => {
@@ -7927,6 +8165,8 @@ export default function CaremapsPrototype() {
           caseManagerPersonaId={caseManagerPersonaId}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
+          dashboardLayout={px360Layout}
+          onDashboardLayoutChange={setPx360Layout}
         />
       )}
       {screen === "documents" && (

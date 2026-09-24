@@ -1,6 +1,6 @@
 # PX360 tab (native port of vitaly-encounters-prototype)
 
-**Status:** In progress — BgZ categories and Dashboard done; Customize view next
+**Status:** In progress — BgZ categories, Dashboard and Customize view done; per-category filters next
 
 ## What it does
 
@@ -33,10 +33,14 @@ above. The Dashboard shows:
   recent records, working status pills, a Filter link, and "Show all (N)" when there are more. Records expand in place.
   The card header collapses the card.
 
-**Planned next:** a "Customize view" modal (Figma 12326-242709) with 1/2/3-column layouts and
-per-category toggles. The layout should survive a reload and be cleared by Reset demo. Filters
-inside the modal ("Set filter") come later. The Figma frame's timeline and use-case switcher are
-deliberately left out for now.
+**Customize view** (Dashboard only, next to the sub-tab switch) opens an "Edit dashboard" modal
+(Figma 12326-242709). It has a 1/2/3-column layout picker, one panel per column listing every BgZ
+category with an on/off switch, and drag and drop to reorder categories within a column or move
+them to another column. The panels map directly to the Dashboard's columns. Changes apply on Save.
+The layout survives a reload, and Reset demo restores the default.
+
+**Not built yet:** "Set filter" per category in the modal (e.g. only active medication), the
+modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
 
 ## Implementation notes
 
@@ -244,9 +248,23 @@ deliberately left out for now.
   - The card limit is `DASHBOARD_CARD_LIMIT = 3`, agreed with the user instead of scrolling
     inside cards. "Show all" and "Filter" call `openInDetailed(catKey)`, which switches the view,
     selects the category and scrolls to the top ("Filter" also opens the drawer).
-  - `DASHBOARD_DEFAULT` (`columns: 2` plus the six visible keys) is a constant for now. The
-    Customize view will make it state saved in localStorage. Cards go into columns round-robin in
-    `PX360_CATEGORIES` order.
+  - The layout is root state (`px360Layout`), saved with the rest of the demo state
+    (`saveDemoState`), and reset to `defaultDashboardLayout()` by `resetDemo`. Shape:
+    `{ columns: [[{ key, visible }], …] }`, one array per column. Every category is always in
+    exactly one column, hidden or not, so its position is kept while it's switched off.
+    `normalizeDashboardLayout` repairs a saved layout that's missing categories or names unknown ones.
+    The default is the six Figma cards dealt round-robin into 2 columns, followed by the rest (hidden).
+  - `CustomizeDashboardModal` edits a draft copy and only writes it on Save. Drag and drop uses native
+    HTML5 drag events on plain `div`s. Framer `motion` components take over the `onDrag*` props
+    for their own gestures, so rows must not be `motion.div`. Each row's wrapper has the 8px spacing
+    as padding, so the whole column is a drop target without gaps; the top or bottom half of a row
+    decides whether the drop goes before or after it. `onDrop` calls `stopPropagation`, because the
+    row and its panel both handle drop and the move would otherwise apply twice.
+  - Changing the column count flattens the columns in reading order and deals them into the new
+    count with visible categories first, so the shown cards spread evenly instead of being pushed
+    around by hidden ones (`changeColumnCount`).
+  - Treatment restrictions is in the modal as an ordinary card (off by default). The red banner
+    is always shown and isn't controlled by the modal.
   - The Encounters "Past (N)" count is now `ENCOUNTER_TOTAL` (every record across `SOURCE_CONFIG`,
     currently 21) instead of the hardcoded 24 from the original prototype, which never matched the
     mock data. That became visible once the Dashboard showed "Show all (N)" next to it.
