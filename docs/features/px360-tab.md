@@ -1,6 +1,6 @@
 # PX360 tab (native port of vitaly-encounters-prototype)
 
-**Status:** Complete
+**Status:** In progress — BgZ categories done; Dashboard and Customize view next
 
 ## What it does
 
@@ -14,10 +14,20 @@ entries available" banner when you've scrolled into the page, sort, and a filter
 breakdown panel stays condensed by default — loading happens behind the "Sources (N/5 loaded)"
 summary line, which only expands on a manual click and stays however you last left it.
 
-The left rail's other two categories — "Klachten en diagnoses" and "Treatment restrictions" — are
-also clickable and show their own static (not live-fetched) mock content: a short list of
-diagnosis/complaint records and resuscitation-restriction records for this patient, each expandable
-the same way Encounters cards are.
+The left rail lists all 17 BgZ (Basisgegevensset Zorg) categories — the same set the Figma "Edit
+dashboard" frame offers — with the ones the two user-research groups ranked most relevant first:
+Encounters, Complaints and diagnoses, Treatment restrictions, Allergies, Medication, Procedures,
+Laboratory results, Healthcare providers, then Alerts, Functional status, Vital signs, Social
+history, Contact persons, Medical devices, Vaccinations, Demographics and identification, and
+Financial information. Every category except Encounters shows static (not live-fetched) mock
+records — 3–5 each, all about this patient — with the same expandable cards, status pills, sort,
+and Filters drawer as Encounters.
+
+**Planned next (agreed with the user, built one section at a time):** a Dashboard / Detailed
+information sub-tab switch, with Dashboard as the default (Figma 13561-53679, without the timeline
+or use-case switcher for now), then a "Customize view" modal (Figma 12326-242709) with 1/2/3-column
+layouts and per-category toggles. The layout should survive a reload and be cleared by Reset demo.
+Filters inside the modal ("Set filter") come later.
 
 ## Implementation notes
 
@@ -106,8 +116,8 @@ the same way Encounters cards are.
   `CategoryToolbar` component (Past/Planned pills, the sort dropdown, the Filters button + count
   badge) — it's safe to reuse one `sortOrder`/`sortMenuOpen`/`filtersOpen` state across all three
   categories since only one is ever mounted at a time (they're mutually exclusive by
-  `activeCategory`). "Past (N)" is a static count per category, same as Encounters' own hardcoded
-  "Past (24)" — none of the three categories treat it as a live/clickable status filter today.
+  `activeCategory`). (The pills were static labels at this point; they became real per-category
+  filters with the BgZ expansion — see below.)
   - **Sort** re-sorts `DIAGNOSIS_ENTRIES`/`RESTRICTION_ENTRIES` by `parseDMY(item.date)` (both
     already plain `DD/MM/YYYY` strings, simpler than Encounters' `sortDate` field) using the same
     shared `sortOrder`; switching category keeps whatever order you last picked.
@@ -171,7 +181,52 @@ the same way Encounters cards are.
     `"GP Practice de Linde, Amersfoort"` (the same org as `r2`, which also reads better as one
     practice's resuscitation-decision history over time rather than an unnamed "GP").
 
+- **BgZ categories are data-driven** (added 2026-09-24). `PX360_CATEGORIES` is the single list
+  that drives the left rail, the list title, the status pills, and the Filters drawer. Each record
+  category has its own `*_ENTRIES` array (`DIAGNOSIS_ENTRIES`, `ALLERGY_ENTRIES`,
+  `MEDICATION_ENTRIES`, …). Before this, Encounters/Diagnoses/Treatment were each hand-written in
+  three places (rail button, list branch, drawer branch). That was fine for 3 categories but not for 17. Encounters keeps its
+  own paginated branch; every other category renders through one generic branch using
+  `RecordCard` / `RecordDetailBlock` — `DiagnosisDetailBlock` and `RestrictionDetailBlock` were
+  folded into it (each record now carries its own `detail: [{ label, value }]` field list).
+  - Record shape: `label` is `"Type | Detail"`; `source` must be one of `SOURCE_CONFIG`'s names
+    (so the Sources panel counts it — nothing comes from MUMC+, which always returns empty);
+    `phase` picks the status pill; optional `type` overrides the Filters "Type" key (Medication
+    groups by drug class, since its label prefix is the drug name); optional `severity`
+    (allergies: high/moderate/low → the Figma dashboard's three-dot indicator) and
+    `tone: "danger"` (red label, used for treatment restrictions and the penicillin allergy).
+  - **Status pills now filter.** Previously "Past (N)" / "Planned (0)" were static labels in all
+    three categories. Each category now declares its own BgZ-appropriate pair (Active/Resolved,
+    Current/Previous, Active/Stopped, Past/Planned), or a single "All (N)" when no status split
+    applies (lab results, vital signs, providers, …), and clicking a pill filters the list.
+    Encounters' Planned pill shows an empty list, since every mock encounter is in the past;
+    "Past (24)" is still the hardcoded server-side total.
+  - **The page-level "All organisations" / "All time" dropdowns now also filter the record
+    categories.** Before, they only applied to Encounters, and Diagnoses/Treatment ignored them.
+  - **Translations for the BgZ mock content** sit in an `Object.assign(NL, {...})` block right
+    after the records, instead of the main `NL` dictionary, so ~200 lines of mock-data Dutch sit
+    next to the data they translate. They're resolved by the same `t()`. Status-pill labels use a
+    `px360Phase:` scope because "Resolved" is already "Afgerond" for tasks. Filter "Type"
+    checkbox labels are taken from the *translated* record label's prefix, so no separate
+    dictionary entry per type is needed.
+  - Content deliberately extends the existing story rather than inventing a new one. Examples: the
+    penicillin allergy matches the Figma sample; the codeine intolerance explains why he's on
+    morphine; the contrast allergy dates from the Encounters list's CT chest; the pneumonia
+    diagnosis, CRP result and pleural puncture all date from the 16/08/2025 "Acute breathlessness"
+    admission; the treatment restrictions match the PZP tab's "Treatment wishes and boundaries";
+    the demographics and insurer (FBTO V02110) match the HIS side panel.
+  - Rail labels now use CSS `uppercase` on the normal title-case label (the old separate
+    `"ENCOUNTERS"`-style dictionary keys were removed). The rail scrolls within itself
+    (`max-h-[calc(100vh-190px)]`) once the page is scrolled down a long Encounters list.
+
 ## Open questions
+
+- BgZ has no direct home for four items from the user-research lists ("Correspondence",
+  "Current care situation", "Information for admission and discharge", "Data from other care
+  organisations"). Per the user, they were left out as likely translation artefacts.
+  "Relevant appointments" maps to Encounters, "Involved providers" to Healthcare providers,
+  "Diagnostics" to Laboratory results, and "Treatment preferences / ACP" to Treatment
+  restrictions.
 
 - The original `vitaly-encounters-prototype` repo itself was **not** updated — its patient is still
   "Leroy Matt Evans." The native port made that unnecessary for this app, but the two repos'
@@ -183,4 +238,6 @@ the same way Encounters cards are.
 - [docs/decisions.md](../decisions.md) — "Natively ported the Encounters prototype as the PX360
   tab", "Gave Diagnoses and Treatment restrictions the same Status/Sort/Filters row as Encounters",
   "Translated PX360's content area to follow the language toggle", "Reverted PX360's failing source
-  to always succeed, auto-collapsing Sources on every settle"
+  to always succeed…" (its auto-collapse part was later replaced by "Sources panels (PX360 +
+  Documents) default to condensed, manual-expand only"), "Expanded PX360 to all BgZ categories,
+  data-driven"

@@ -9,7 +9,8 @@ import {
   Check, Bold, Italic, Underline, Link2, ListOrdered, List, RotateCcw,
   MinusCircle, AlertTriangle, AlertCircle, ExternalLink, RefreshCw, ArrowUpDown, Filter, ArrowDown,
   HelpCircle, MessageSquare, ShieldAlert, ClipboardCheck, FileSignature, FlaskConical,
-  ShieldCheck, FileX, LayoutList, LoaderCircle,
+  ShieldCheck, FileX, LayoutList, LoaderCircle, Pill, ClipboardPlus, BriefcaseMedical, Flag,
+  Accessibility, HeartPulse, House, Users, Armchair, Syringe, IdCard, Wallet,
 } from "lucide-react";
 import vitalyLogo from "./assets/vitaly-logo.png";
 
@@ -455,11 +456,8 @@ const NL = {
   // shipped Dutch-only from the port; given an English base + NL pair here
   // so it actually follows the language toggle instead of always being Dutch)
   "Encounters": "Contactmomenten",
-  "ENCOUNTERS": "CONTACTMOMENTEN",
   "Complaints and diagnoses": "Klachten en diagnoses",
-  "COMPLAINTS AND DIAGNOSES": "KLACHTEN EN DIAGNOSES",
   "Treatment restrictions": "Behandelbeperkingen",
-  "TREATMENT RESTRICTIONS": "BEHANDELBEPERKINGEN",
 
   // PX360 — sources panel
   "Sources": "Bronnen",
@@ -1380,12 +1378,12 @@ function PatientBar({ back, activeTab = "CAREMAPS", onTabClick }) {
 
 /* ================= PX360 (ported from vitaly-encounters-prototype) =================
    Native port of that sibling prototype's Encounters simulation — same source-loading
-   mechanics (delays, pagination, failure/retry, merge-on-arrival), reusing this app's own
+   mechanics (delays, pagination, merge-on-arrival), reusing this app's own
    Sidebar/TopHeader/PatientBar chrome instead of duplicating a second one. Mock encounter
    content was adjusted from the original (a 16-year-old's sports-injury/pediatric visits)
    to fit De Vries, Jan — dates/delays/counts/org names are otherwise untouched so the
-   loading behavior demonstrated is identical. Not translated (English only) — see
-   docs/features/px360-tab.md. */
+   loading behavior demonstrated is identical. The other BgZ categories are static record
+   lists (PX360_CATEGORIES) — see docs/features/px360-tab.md. */
 
 // Each fetch returns at most FETCH_PAGE of a source's entries (latest first),
 // mimicking server-side pagination. `entries` is the full server-side dataset.
@@ -1698,11 +1696,12 @@ function DetailRow({ label, children }) {
   );
 }
 
-function StatusBadge({ children }) {
+// `muted` is for ended states (resolved/stopped) — gray instead of green.
+function StatusBadge({ children, muted }) {
   return (
     <span
       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide"
-      style={{ backgroundColor: "#E4F0E0", color: T.success }}
+      style={{ backgroundColor: muted ? T.lightBg : "#E4F0E0", color: muted ? T.gray600 : T.success }}
     >
       {children}
     </span>
@@ -1745,149 +1744,1286 @@ function OrgDetailBlock({ detail, isFirst }) {
   );
 }
 
-// Mock content for the two other left-rail categories (Complaints/Diagnoses,
-// Treatment restrictions) — the list itself is static, but all three
-// categories share Encounters' own 5-source fetch simulation (SourceStatus,
-// SourcesHeader) for the loading/settled experience. Authored to fit this
-// patient's palliative story (metastatic lung cancer + COPD from the PZP
-// tab's "Main diagnosis"/"Relevant comorbidity", and a resuscitation
-// decision history culminating in the PZP tab's own "Not for resuscitation").
+// PX360's left-rail categories follow the Dutch BgZ (Basisgegevensset Zorg)
+// sections — the same list the "Edit dashboard" Figma frame (12326-242709)
+// offers. Order puts the categories the two user-research groups ranked as
+// most relevant (doctors; nurses/administration) first, then the rest of BgZ.
+// Encounters is the only live-paginated category (SOURCE_CONFIG above); every
+// other category is a static record list, but all of them share Encounters'
+// 5-source fetch simulation for the loading/settled experience (SourcesHeader).
+//
+// Record shape: `label` is "Type | Detail" (the part before "|" doubles as the
+// Filters drawer's "Type" unless `type` overrides it — every NL translation
+// keeps the "|" in place), `source` must be one of SOURCE_CONFIG's names so
+// the Sources panel can count it (MUMC+ always returns empty, so nothing
+// here comes from it), `phase` picks which status pill the record sits under,
+// and `detail` is the expanded card's field list, rendered generically by
+// RecordDetailBlock. Content is authored around this patient's palliative
+// story — metastatic lung cancer + COPD, the PZP tab's treatment wishes,
+// his wife Petra and daughter Anne — so every category reads as one person.
 const DIAGNOSIS_ENTRIES = [
   {
     id: "d1",
     date: "18/03/2026",
     source: "Erasmus MC",
     label: "Diagnosis | Metastatic non-small-cell lung carcinoma",
-    detail: {
-      org: "Erasmus MC",
-      explanation: "Metastatic non-small-cell lung cancer with recent progression, discussed at MDT.",
-      location: "Lung, right upper lobe",
-      laterality: "Right",
-      verificationStatus: "Confirmed",
-      status: "ACTIVE",
-      date: "18/03/2026",
-    },
+    phase: "active",
+    detail: [
+      { label: "Explanation", value: "Metastatic non-small-cell lung cancer with recent progression, discussed at MDT." },
+      { label: "Anatom. location", value: "Lung, right upper lobe" },
+      { label: "Laterality", value: "Right" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+      { label: "Date", value: "18/03/2026" },
+    ],
   },
   {
     id: "d2",
     date: "12/11/2021",
     source: "Maastricht UMC+",
     label: "Diagnosis | Moderate COPD",
-    detail: {
-      org: "Maastricht UMC+",
-      explanation: "Moderate COPD, GOLD stage II-III, oxygen-dependent on exertion.",
-      location: "Lungs (bilateral)",
-      verificationStatus: "Confirmed",
-      status: "ACTIVE",
-      date: "12/11/2021",
-    },
+    phase: "active",
+    detail: [
+      { label: "Explanation", value: "Moderate COPD, GOLD stage II-III, oxygen-dependent on exertion." },
+      { label: "Anatom. location", value: "Lungs (bilateral)" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+      { label: "Date", value: "12/11/2021" },
+    ],
   },
   {
     id: "d3",
     date: "08/10/2025",
     source: "UMC Utrecht",
     label: "Diagnosis | Type 2 Diabetes Mellitus",
-    detail: {
-      org: "UMC Utrecht",
-      explanation: "Type 2 diabetes mellitus, diet and oral medication controlled.",
-      verificationStatus: "Confirmed",
-      status: "COMPLETED",
-      date: "08/10/2025",
-    },
+    phase: "active",
+    detail: [
+      { label: "Explanation", value: "Type 2 diabetes mellitus, diet and oral medication controlled." },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+      { label: "Date", value: "08/10/2025" },
+    ],
+  },
+  {
+    id: "d5",
+    date: "16/08/2025",
+    source: "Maastricht UMC+",
+    label: "Diagnosis | Community-acquired pneumonia",
+    phase: "resolved",
+    detail: [
+      { label: "Explanation", value: "Right lower lobe pneumonia during an admission for acute breathlessness; treated with oral antibiotics." },
+      { label: "Anatom. location", value: "Lung, right lower lobe" },
+      { label: "Laterality", value: "Right" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "RESOLVED" },
+      { label: "Date", value: "16/08/2025" },
+    ],
   },
   {
     id: "d4",
     date: "10/07/2025",
     source: "UMC Utrecht",
     label: "Complaint | Chronic pain limiting mobility",
-    detail: {
-      org: "UMC Utrecht",
-      explanation: "Chronic pain limiting mobility.",
-      location: "Knee",
-      laterality: "Right",
-      verificationStatus: "Confirmed",
-      status: "COMPLETED",
-      date: "10/07/2025",
-    },
+    phase: "resolved",
+    detail: [
+      { label: "Explanation", value: "Chronic pain limiting mobility." },
+      { label: "Anatom. location", value: "Knee" },
+      { label: "Laterality", value: "Right" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "RESOLVED" },
+      { label: "Date", value: "10/07/2025" },
+    ],
   },
 ];
 
+// BgZ "Behandelaanwijzingen": a 2023 "with limitations" CPR record superseded
+// by the 2026 palliative-phase decisions, which match the PZP tab's "Treatment
+// wishes and boundaries" section word-for-word where they overlap.
 const RESTRICTION_ENTRIES = [
   {
     id: "r1",
     date: "10/06/2023",
     source: "GP Practice de Linde, Amersfoort",
     label: "Cardiopulmonary resuscitation | Yes, but with limitations",
-    detail: { limits: "First consult with wife", verifiedBy: "Patient", verificationDate: "10/6/2023" },
+    phase: "previous",
+    tone: "danger",
+    detail: [
+      { label: "Limits", value: "First consult with wife" },
+      { label: "Verified By", value: "Patient" },
+      { label: "Verification date", value: "10/06/2023" },
+    ],
   },
   {
     id: "r2",
     date: "12/08/2026",
     source: "GP Practice de Linde, Amersfoort",
     label: "Cardiopulmonary resuscitation | Not for resuscitation",
-    detail: {
-      limits: "Agreed with patient and GP as part of the palliative care plan",
-      verifiedBy: "Patient and GP",
-      verificationDate: "12/8/2026",
-    },
+    phase: "current",
+    tone: "danger",
+    detail: [
+      { label: "Limits", value: "Agreed with patient and GP as part of the palliative care plan" },
+      { label: "Verified By", value: "Patient and GP" },
+      { label: "Verification date", value: "12/08/2026" },
+    ],
+  },
+  {
+    id: "r3",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Artificial ventilation | Not desired",
+    phase: "current",
+    tone: "danger",
+    detail: [
+      { label: "Limits", value: "No intubation or ICU admission" },
+      { label: "Verified By", value: "Patient and GP" },
+      { label: "Verification date", value: "12/08/2026" },
+    ],
+  },
+  {
+    id: "r4",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Artificial nutrition and hydration | Declined",
+    phase: "current",
+    tone: "danger",
+    detail: [
+      { label: "Limits", value: "Comfort feeding only" },
+      { label: "Verified By", value: "Patient and GP" },
+      { label: "Verification date", value: "12/08/2026" },
+    ],
+  },
+  {
+    id: "r5",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Antibiotics | Oral only",
+    phase: "current",
+    tone: "danger",
+    detail: [
+      { label: "Limits", value: "Oral antibiotics acceptable for comfort; IV antibiotics or hospital admission for infection declined" },
+      { label: "Verified By", value: "Patient and GP" },
+      { label: "Verification date", value: "12/08/2026" },
+    ],
   },
 ];
 
-// Shared by the Diagnoses/Treatment categories so they can offer the same
-// Sort/Filters experience Encounters has, without needing Encounters' own
-// FILTER_TYPES/encounterTypeKey (a different taxonomy tied to visit types).
-function simpleTypeKey(item) {
-  return item.label.split("|")[0].trim();
-}
-const DIAGNOSIS_FILTER_TYPES = [...new Set(DIAGNOSIS_ENTRIES.map(simpleTypeKey))].map((key) => ({ key, label: key }));
-const TREATMENT_FILTER_TYPES = [...new Set(RESTRICTION_ENTRIES.map(simpleTypeKey))].map((key) => ({ key, label: key }));
+const ALLERGY_ENTRIES = [
+  {
+    id: "alg1",
+    date: "14/05/2019",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Medication | Penicillin",
+    phase: "active",
+    severity: "high",
+    tone: "danger",
+    detail: [
+      { label: "Reaction", value: "Urticaria and facial swelling" },
+      { label: "Severity", value: "Severe" },
+      { label: "Criticality", value: "High" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "alg2",
+    date: "12/10/2023",
+    source: "Maastricht UMC+",
+    label: "Medication | Iodinated contrast medium",
+    phase: "active",
+    severity: "moderate",
+    detail: [
+      { label: "Reaction", value: "Generalised rash after CT chest" },
+      { label: "Severity", value: "Moderate" },
+      { label: "Criticality", value: "Low" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "alg3",
+    date: "20/02/2024",
+    source: "Erasmus MC",
+    label: "Medication | Codeine (intolerance)",
+    phase: "active",
+    severity: "moderate",
+    detail: [
+      { label: "Reaction", value: "Severe nausea and vomiting" },
+      { label: "Severity", value: "Moderate" },
+      { label: "Criticality", value: "Low" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "alg4",
+    date: "03/06/2021",
+    source: "Maastricht UMC+",
+    label: "Environmental | Wasp venom",
+    phase: "resolved",
+    severity: "low",
+    detail: [
+      { label: "Reaction", value: "Local swelling" },
+      { label: "Severity", value: "Mild" },
+      { label: "Criticality", value: "Low" },
+      { label: "Verification status", value: "Unconfirmed" },
+      { label: "Status", value: "RESOLVED" },
+    ],
+  },
+];
 
-// Both categories' dates are already plain "DD/MM/YYYY" strings, unlike
-// Encounters' sortDate field (which some entries derive from a date range).
+// `type` overrides the label-prefix filter key, since here the prefix is the
+// drug name — the Filters drawer groups by drug class instead.
+const MEDICATION_ENTRIES = [
+  {
+    id: "med1",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Morphine oral solution 5 mg/ml | 2.5–5 mg as needed, max 6× per day",
+    type: "Opioid",
+    phase: "active",
+    detail: [
+      { label: "Indication", value: "Breathlessness and pain" },
+      { label: "Route", value: "Oral" },
+      { label: "Prescriber", value: "Dr. M. Henley (General Practitioner)" },
+      { label: "Start date", value: "12/08/2026" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "med2",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Midazolam 5 mg/ml | 2.5–5 mg subcutaneous as needed",
+    type: "Benzodiazepine",
+    phase: "active",
+    detail: [
+      { label: "Indication", value: "Anxiety or terminal restlessness (rescue kit at home)" },
+      { label: "Route", value: "Subcutaneous" },
+      { label: "Prescriber", value: "Dr. M. Henley (General Practitioner)" },
+      { label: "Start date", value: "12/08/2026" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "med3",
+    date: "12/11/2021",
+    source: "Maastricht UMC+",
+    label: "Tiotropium/olodaterol 2.5/2.5 mcg inhaler | 2 puffs once daily",
+    type: "Inhaler",
+    phase: "active",
+    detail: [
+      { label: "Indication", value: "Moderate COPD" },
+      { label: "Route", value: "Inhalation" },
+      { label: "Prescriber", value: "Dr. S. Janssen (Pulmonologist)" },
+      { label: "Start date", value: "12/11/2021" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "med4",
+    date: "08/10/2025",
+    source: "UMC Utrecht",
+    label: "Metformin 500 mg | 1 tablet 2× daily, with meals",
+    type: "Oral antidiabetic",
+    phase: "active",
+    detail: [
+      { label: "Indication", value: "Type 2 diabetes mellitus" },
+      { label: "Route", value: "Oral" },
+      { label: "Prescriber", value: "Dr. L. Bakker (Internist)" },
+      { label: "Start date", value: "08/10/2025" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "med5",
+    date: "15/04/2024",
+    source: "Maastricht UMC+",
+    label: "Carboplatin/pemetrexed | 4 cycles, every 3 weeks",
+    type: "Chemotherapy",
+    phase: "stopped",
+    detail: [
+      { label: "Indication", value: "Metastatic non-small-cell lung carcinoma" },
+      { label: "Route", value: "Intravenous" },
+      { label: "Start date", value: "15/04/2024" },
+      { label: "End date", value: "01/07/2024" },
+      { label: "Status", value: "STOPPED" },
+    ],
+  },
+];
+
+const PROCEDURE_ENTRIES = [
+  {
+    id: "proc1",
+    date: "02/10/2026",
+    source: "Maastricht UMC+",
+    label: "Indwelling pleural catheter placement | Right",
+    phase: "planned",
+    detail: [
+      { label: "Indication", value: "Recurrent malignant pleural effusion" },
+      { label: "Laterality", value: "Right" },
+      { label: "Performed by", value: "Dr. S. Janssen (Pulmonologist)" },
+      { label: "Date", value: "02/10/2026" },
+    ],
+  },
+  {
+    id: "proc2",
+    date: "03/09/2026",
+    source: "Erasmus MC",
+    label: "Palliative radiotherapy | Bone metastasis, left hip",
+    phase: "past",
+    detail: [
+      { label: "Indication", value: "Pain from bone metastasis" },
+      { label: "Laterality", value: "Left" },
+      { label: "Performed by", value: "Dr. P. Visser (Radiation Oncology)" },
+      { label: "Date", value: "03/09/2026" },
+    ],
+  },
+  {
+    id: "proc3",
+    date: "18/08/2025",
+    source: "Maastricht UMC+",
+    label: "Pleural puncture | Right",
+    phase: "past",
+    detail: [
+      { label: "Indication", value: "Pleural effusion during admission for acute breathlessness" },
+      { label: "Laterality", value: "Right" },
+      { label: "Performed by", value: "Dr. S. Janssen (Pulmonologist)" },
+      { label: "Date", value: "18/08/2025" },
+    ],
+  },
+  {
+    id: "proc4",
+    date: "20/02/2024",
+    source: "Erasmus MC",
+    label: "Bronchoscopy with biopsy | Right upper lobe",
+    phase: "past",
+    detail: [
+      { label: "Indication", value: "Suspected lung carcinoma" },
+      { label: "Laterality", value: "Right" },
+      { label: "Performed by", value: "Dr. R. de Wit (Pulmonologist)" },
+      { label: "Date", value: "20/02/2024" },
+    ],
+  },
+  {
+    id: "proc5",
+    date: "14/07/2023",
+    source: "Erasmus MC",
+    label: "Knee arthroscopy | Right",
+    phase: "past",
+    detail: [
+      { label: "Indication", value: "Chronic pain limiting mobility." },
+      { label: "Laterality", value: "Right" },
+      { label: "Date", value: "14/07/2023" },
+    ],
+  },
+];
+
+const LAB_ENTRIES = [
+  {
+    id: "lab1",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Haemoglobin | 7.1 mmol/L",
+    detail: [
+      { label: "Result", value: "7.1 mmol/L" },
+      { label: "Reference range", value: "8.5–11.0 mmol/L" },
+      { label: "Interpretation", value: "Low" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "lab2",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "eGFR | 52 ml/min/1.73m²",
+    detail: [
+      { label: "Result", value: "52 ml/min/1.73m²" },
+      { label: "Reference range", value: "> 60 ml/min/1.73m²" },
+      { label: "Interpretation", value: "Low" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "lab3",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "HbA1c | 58 mmol/mol",
+    detail: [
+      { label: "Result", value: "58 mmol/mol" },
+      { label: "Reference range", value: "< 53 mmol/mol" },
+      { label: "Interpretation", value: "High" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "lab4",
+    date: "18/03/2026",
+    source: "Erasmus MC",
+    label: "Albumin | 31 g/L",
+    detail: [
+      { label: "Result", value: "31 g/L" },
+      { label: "Reference range", value: "35–50 g/L" },
+      { label: "Interpretation", value: "Low" },
+      { label: "Date", value: "18/03/2026" },
+    ],
+  },
+  {
+    id: "lab5",
+    date: "16/08/2025",
+    source: "Maastricht UMC+",
+    label: "CRP | 86 mg/L",
+    detail: [
+      { label: "Result", value: "86 mg/L" },
+      { label: "Reference range", value: "< 10 mg/L" },
+      { label: "Interpretation", value: "High" },
+      { label: "Date", value: "16/08/2025" },
+    ],
+  },
+];
+
+const PROVIDER_ENTRIES = [
+  {
+    id: "hcp1",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "General practitioner | Dr. M. Henley",
+    detail: [
+      { label: "Organisation", value: "GP Practice de Linde, Amersfoort" },
+      { label: "Role", value: "Main practitioner" },
+      { label: "Phone", value: "+31 33 123 45 67" },
+    ],
+  },
+  {
+    id: "hcp2",
+    date: "01/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Community nurse | Mary Brown",
+    detail: [
+      { label: "Organisation", value: "Regional Homecare" },
+      { label: "Role", value: "Home care, palliative nursing" },
+      { label: "Phone", value: "+31 6 12 34 56 08" },
+    ],
+  },
+  {
+    id: "hcp3",
+    date: "20/02/2024",
+    source: "Erasmus MC",
+    label: "Medical oncologist | Dr. E. Carter",
+    detail: [
+      { label: "Organisation", value: "Erasmus MC" },
+      { label: "Role", value: "Treating specialist, lung carcinoma" },
+      { label: "Phone", value: "+31 6 12 34 56 01" },
+    ],
+  },
+  {
+    id: "hcp4",
+    date: "12/11/2021",
+    source: "Maastricht UMC+",
+    label: "Pulmonologist | Dr. S. Janssen",
+    detail: [
+      { label: "Organisation", value: "Maastricht UMC+" },
+      { label: "Role", value: "Treating specialist, COPD" },
+      { label: "Phone", value: "+31 43 387 65 43" },
+    ],
+  },
+  {
+    id: "hcp5",
+    date: "08/10/2025",
+    source: "UMC Utrecht",
+    label: "Internist | Dr. L. Bakker",
+    detail: [
+      { label: "Organisation", value: "UMC Utrecht" },
+      { label: "Role", value: "Treating specialist, diabetes" },
+      { label: "Phone", value: "+31 88 755 55 55" },
+    ],
+  },
+];
+
+const ALERT_ENTRIES = [
+  {
+    id: "alr1",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Oxygen at home | No open flames or smoking",
+    phase: "active",
+    detail: [
+      { label: "Explanation", value: "Home oxygen concentrator in use." },
+      { label: "Status", value: "ACTIVE" },
+      { label: "Start date", value: "12/08/2026" },
+    ],
+  },
+  {
+    id: "alr2",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Reduced renal function | Adjust dosing",
+    phase: "active",
+    detail: [
+      { label: "Explanation", value: "eGFR 52; review metformin and opioid dosing." },
+      { label: "Status", value: "ACTIVE" },
+      { label: "Start date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "alr3",
+    date: "21/09/2022",
+    source: "Maastricht UMC+",
+    label: "Fall risk | Increased",
+    phase: "active",
+    detail: [
+      { label: "Explanation", value: "Fall at home in 2022; walks with a rollator." },
+      { label: "Status", value: "ACTIVE" },
+      { label: "Start date", value: "21/09/2022" },
+    ],
+  },
+  {
+    id: "alr4",
+    date: "12/10/2023",
+    source: "Maastricht UMC+",
+    label: "MRSA carrier | Negative on rescreening",
+    phase: "resolved",
+    detail: [
+      { label: "Explanation", value: "Positive screening in 2023, negative on three follow-up cultures." },
+      { label: "Status", value: "RESOLVED" },
+      { label: "Start date", value: "12/10/2023" },
+    ],
+  },
+];
+
+const FUNCTIONAL_ENTRIES = [
+  {
+    id: "fun1",
+    date: "03/09/2026",
+    source: "Erasmus MC",
+    label: "Performance status | WHO 3",
+    detail: [
+      { label: "Explanation", value: "In bed or chair more than half of the day; capable of only limited self-care." },
+      { label: "Date", value: "03/09/2026" },
+    ],
+  },
+  {
+    id: "fun2",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Mobility | Short distances with rollator",
+    detail: [
+      { label: "Explanation", value: "Walks indoors with a rollator; uses a wheelchair outdoors." },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "fun3",
+    date: "01/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Self-care | Needs help washing and dressing",
+    detail: [
+      { label: "Explanation", value: "Home care visits twice daily." },
+      { label: "Date", value: "01/09/2026" },
+    ],
+  },
+  {
+    id: "fun4",
+    date: "02/07/2025",
+    source: "Maastricht UMC+",
+    label: "Breathlessness | MRC grade 4",
+    detail: [
+      { label: "Explanation", value: "Stops for breath after about 100 metres or a few minutes on level ground." },
+      { label: "Date", value: "02/07/2025" },
+    ],
+  },
+];
+
+const VITALS_ENTRIES = [
+  {
+    id: "vit1",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Blood pressure | 124/76 mmHg",
+    detail: [
+      { label: "Result", value: "124/76 mmHg" },
+      { label: "Method", value: "Sitting, left arm" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "vit2",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Oxygen saturation | 91%",
+    detail: [
+      { label: "Result", value: "91%" },
+      { label: "Method", value: "At rest, room air" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "vit3",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Heart rate | 92 /min",
+    detail: [
+      { label: "Result", value: "92 /min" },
+      { label: "Method", value: "At rest" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "vit4",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Body weight | 71 kg",
+    detail: [
+      { label: "Result", value: "71 kg" },
+      { label: "Explanation", value: "10 kg weight loss in the past year" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "vit5",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Body height | 178 cm",
+    detail: [
+      { label: "Result", value: "178 cm" },
+      { label: "Date", value: "12/01/2024" },
+    ],
+  },
+];
+
+const SOCIAL_ENTRIES = [
+  {
+    id: "soc1",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Living situation | At home with wife",
+    detail: [
+      { label: "Explanation", value: "Single-family home; bedroom moved to the ground floor." },
+      { label: "Date", value: "12/08/2026" },
+    ],
+  },
+  {
+    id: "soc2",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Participation | Retired carpenter",
+    detail: [
+      { label: "Explanation", value: "Informal care from wife Petra and daughter Anne." },
+      { label: "Date", value: "12/08/2026" },
+    ],
+  },
+  {
+    id: "soc3",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Tobacco use | Former smoker",
+    detail: [
+      { label: "Explanation", value: "40 pack-years; quit in 2019." },
+      { label: "Date", value: "12/01/2024" },
+    ],
+  },
+  {
+    id: "soc4",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Alcohol use | 1–2 units per week",
+    detail: [
+      { label: "Date", value: "12/01/2024" },
+    ],
+  },
+  {
+    id: "soc5",
+    date: "03/09/2026",
+    source: "Erasmus MC",
+    label: "Nutrition advice | Energy- and protein-rich diet",
+    detail: [
+      { label: "Explanation", value: "Small frequent meals and sip feeds, per dietitian." },
+      { label: "Date", value: "03/09/2026" },
+    ],
+  },
+];
+
+const CONTACT_PERSON_ENTRIES = [
+  {
+    id: "cp1",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "First contact | Petra de Vries",
+    detail: [
+      { label: "Relationship", value: "Spouse" },
+      { label: "Role", value: "Informal representative for medical decisions" },
+      { label: "Phone", value: "+31 6 98 76 54 32" },
+    ],
+  },
+  {
+    id: "cp2",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Second contact | Anne de Vries",
+    detail: [
+      { label: "Relationship", value: "Daughter" },
+      { label: "Role", value: "Informal caregiver" },
+      { label: "Phone", value: "+31 6 45 67 89 01" },
+    ],
+  },
+  {
+    id: "cp3",
+    date: "12/08/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Legal representative | None formally appointed",
+    detail: [
+      { label: "Explanation", value: "Patient has full decision-making capacity at present." },
+    ],
+  },
+];
+
+const DEVICE_ENTRIES = [
+  {
+    id: "dev1",
+    date: "12/08/2026",
+    source: "Maastricht UMC+",
+    label: "Oxygen concentrator | 2 L/min on exertion and at night",
+    detail: [
+      { label: "Indication", value: "Moderate COPD" },
+      { label: "Location", value: "At home" },
+      { label: "Start date", value: "12/08/2026" },
+    ],
+  },
+  {
+    id: "dev2",
+    date: "01/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Hospital bed | Adjustable",
+    detail: [
+      { label: "Indication", value: "Reduced mobility, home care" },
+      { label: "Location", value: "At home" },
+      { label: "Start date", value: "01/09/2026" },
+    ],
+  },
+  {
+    id: "dev3",
+    date: "21/09/2022",
+    source: "Maastricht UMC+",
+    label: "Rollator | Walking aid",
+    detail: [
+      { label: "Indication", value: "Fall risk" },
+      { label: "Start date", value: "21/09/2022" },
+    ],
+  },
+  {
+    id: "dev4",
+    date: "08/10/2025",
+    source: "UMC Utrecht",
+    label: "Blood glucose meter | Self-monitoring",
+    detail: [
+      { label: "Indication", value: "Type 2 diabetes mellitus" },
+      { label: "Start date", value: "08/10/2025" },
+    ],
+  },
+];
+
+const VACCINATION_ENTRIES = [
+  {
+    id: "vac1",
+    date: "28/10/2025",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "COVID-19 | Autumn booster 2025",
+    detail: [
+      { label: "Dose", value: "Booster" },
+      { label: "Date", value: "28/10/2025" },
+    ],
+  },
+  {
+    id: "vac2",
+    date: "14/10/2025",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Influenza | Seasonal vaccine 2025",
+    detail: [
+      { label: "Dose", value: "Annual" },
+      { label: "Date", value: "14/10/2025" },
+    ],
+  },
+  {
+    id: "vac3",
+    date: "16/10/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Influenza | Seasonal vaccine 2024",
+    detail: [
+      { label: "Dose", value: "Annual" },
+      { label: "Date", value: "16/10/2024" },
+    ],
+  },
+  {
+    id: "vac4",
+    date: "03/11/2023",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Pneumococcal | PPV23",
+    detail: [
+      { label: "Dose", value: "Single dose" },
+      { label: "Date", value: "03/11/2023" },
+    ],
+  },
+];
+
+// Matches the PatientBar and the HIS side panel's own patient record.
+const DEMOGRAPHICS_ENTRIES = [
+  {
+    id: "dem1",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Name | De Vries, Jan",
+    detail: [
+      { label: "Date of birth", value: "14/03/1953 (73 years)" },
+      { label: "Gender", value: "Male" },
+    ],
+  },
+  {
+    id: "dem2",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Identification | ID 161 885 4347",
+    detail: [
+      { label: "Verification status", value: "Confirmed" },
+    ],
+  },
+  {
+    id: "dem3",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Address | Violenstraat 35, 3551 BB Utrecht",
+    detail: [
+      { label: "Phone", value: "0612345678" },
+    ],
+  },
+  {
+    id: "dem4",
+    date: "12/01/2024",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Language | Dutch",
+    detail: [
+      { label: "Explanation", value: "No interpreter needed." },
+    ],
+  },
+];
+
+const FINANCIAL_ENTRIES = [
+  {
+    id: "fin1",
+    date: "01/01/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Health insurance | FBTO basic insurance",
+    detail: [
+      { label: "Policy number", value: "V02110" },
+      { label: "Start date", value: "01/01/2026" },
+    ],
+  },
+  {
+    id: "fin2",
+    date: "01/01/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Supplementary insurance | FBTO supplementary module",
+    detail: [
+      { label: "Policy number", value: "V02110" },
+      { label: "Start date", value: "01/01/2026" },
+    ],
+  },
+  {
+    id: "fin3",
+    date: "01/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Long-term care (Wlz) | Indication requested",
+    detail: [
+      { label: "Explanation", value: "Palliative-terminal care indication requested from the CIZ." },
+      { label: "Date", value: "01/09/2026" },
+    ],
+  },
+];
+
+// The left rail, in display order. `phases` drives the status pills above
+// each list (omitted = a single static "All (N)" pill, for categories where
+// no BgZ status split applies). Encounters has no `entries` — it's rendered by
+// its own paginated merge-on-arrival branch in EncountersSection.
+const PX360_CATEGORIES = [
+  { key: "encounters", label: "Encounters", icon: CalendarDays, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }] },
+  { key: "diagnoses", label: "Complaints and diagnoses", icon: Stethoscope, entries: DIAGNOSIS_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }] },
+  { key: "treatment", label: "Treatment restrictions", icon: ClipboardList, entries: RESTRICTION_ENTRIES, phases: [{ key: "current", label: "Current" }, { key: "previous", label: "Previous" }] },
+  { key: "allergies", label: "Allergies", icon: ShieldAlert, entries: ALLERGY_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }] },
+  { key: "medication", label: "Medication", icon: Pill, entries: MEDICATION_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "stopped", label: "Stopped" }] },
+  { key: "procedures", label: "Procedures", icon: ClipboardPlus, entries: PROCEDURE_ENTRIES, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }] },
+  { key: "lab", label: "Laboratory results", icon: FlaskConical, entries: LAB_ENTRIES },
+  { key: "providers", label: "Healthcare providers", icon: BriefcaseMedical, entries: PROVIDER_ENTRIES },
+  { key: "alerts", label: "Alerts", icon: Flag, entries: ALERT_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }] },
+  { key: "functional", label: "Functional status", icon: Accessibility, entries: FUNCTIONAL_ENTRIES },
+  { key: "vitals", label: "Vital signs", icon: HeartPulse, entries: VITALS_ENTRIES },
+  { key: "social", label: "Social history", icon: House, entries: SOCIAL_ENTRIES },
+  { key: "contacts", label: "Contact persons", icon: Users, entries: CONTACT_PERSON_ENTRIES },
+  { key: "devices", label: "Medical devices", icon: Armchair, entries: DEVICE_ENTRIES },
+  { key: "vaccinations", label: "Vaccinations", icon: Syringe, entries: VACCINATION_ENTRIES },
+  { key: "demographics", label: "Demographics and identification", icon: IdCard, entries: DEMOGRAPHICS_ENTRIES },
+  { key: "financial", label: "Financial information", icon: Wallet, entries: FINANCIAL_ENTRIES },
+];
+
+// Record-list categories' Filters drawer offers one "Type" section, built from
+// each record's `type` (or its label prefix before "|").
+function simpleTypeKey(item) {
+  return item.type ?? item.label.split("|")[0].trim();
+}
+// [{ key, label }] with the label already translated — taken from the
+// translated record label's own prefix, so no separate dictionary entry is
+// needed per type (every NL label keeps its "|" in the same place).
+function categoryFilterTypes(category, t) {
+  const seen = new Map();
+  category.entries.forEach((item) => {
+    const key = simpleTypeKey(item);
+    if (!seen.has(key)) seen.set(key, item.type ? t(item.type) : t(item.label).split("|")[0].trim());
+  });
+  return [...seen].map(([key, label]) => ({ key, label }));
+}
+
+// Record dates are plain "DD/MM/YYYY" strings, unlike Encounters' sortDate
+// field (which some entries derive from a date range).
 function parseDMY(str) {
   const [d, m, y] = str.split("/").map(Number);
   return new Date(y, m - 1, d).getTime();
 }
 
+// Same windows as Encounters' withinTimeWindow, for "DD/MM/YYYY" records.
+function recordWithinTimeWindow(item, timeFilter) {
+  if (timeFilter === "all") return true;
+  const days = { month: 31, "6months": 186, year: 366, "5years": 366 * 5 }[timeFilter];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return parseDMY(item.date) >= cutoff.getTime();
+}
+
 // How many of a category's own entries came from a given organisation —
 // used by SourcesHeader so its per-source subtext reflects what's actually
-// on screen for Diagnoses/Treatment (a handful of records) rather than
+// on screen for a record category (a handful of records) rather than
 // reusing Encounters' own fetched/total pagination counts (tens of records),
-// which would read as literally the wrong numbers for a 4- or 2-item list.
+// which would read as literally the wrong numbers for a 4- or 5-item list.
 function countByOrg(entries, orgName) {
   return entries.filter((e) => e.source === orgName).length;
 }
 
-function DiagnosisDetailBlock({ detail }) {
+// Allergy severity as the Figma dashboard draws it: three dots, filled
+// red/orange/blue for high/moderate/low.
+function SeverityDots({ severity }) {
+  const filled = { high: 3, moderate: 2, low: 1 }[severity] || 0;
+  const color = { high: T.danger, moderate: T.warning, low: T.primary }[severity];
+  return (
+    <span className="inline-flex items-center gap-[3px] ml-2 align-middle">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: i < filled ? color : T.gray400 }} />
+      ))}
+    </span>
+  );
+}
+
+// Expanded body of any record-list card: the contributing organisation, then
+// the record's own field list. A "Status" field renders as a badge.
+function RecordDetailBlock({ item }) {
   const { t } = useLanguage();
   return (
     <div className="px-4 py-3" style={{ backgroundColor: T.light }}>
       <div className="mb-2">
-        <span className="text-[12px] font-bold tracking-wide" style={{ color: T.bodyText }}>{detail.org}</span>
+        <span className="text-[12px] font-bold tracking-wide" style={{ color: T.bodyText }}>{item.source}</span>
       </div>
-      <DetailRow label="Explanation">{t(detail.explanation)}</DetailRow>
-      <DetailRow label="Anatom. location">{t(detail.location)}</DetailRow>
-      <DetailRow label="Laterality">{t(detail.laterality)}</DetailRow>
-      <DetailRow label="Verification status">{t(detail.verificationStatus)}</DetailRow>
-      <div className="flex items-start gap-4 py-1 text-[13px]">
-        <span className="w-[120px] shrink-0" style={{ color: T.gray600 }}>{t("Status")}</span>
-        <StatusBadge>{t(detail.status)}</StatusBadge>
-      </div>
-      <DetailRow label="Date">{detail.date}</DetailRow>
+      {item.detail.map((d) =>
+        d.label === "Status" ? (
+          <div key={d.label} className="flex items-start gap-4 py-1 text-[13px]">
+            <span className="w-[120px] shrink-0" style={{ color: T.gray600 }}>{t("Status")}</span>
+            <StatusBadge muted={d.value === "RESOLVED" || d.value === "STOPPED"}>{t(d.value)}</StatusBadge>
+          </div>
+        ) : (
+          <DetailRow key={d.label} label={d.label}>{t(d.value)}</DetailRow>
+        )
+      )}
     </div>
   );
 }
 
-function RestrictionDetailBlock({ detail }) {
+// Collapsed/expandable card for one record — the same date + org header line,
+// bold label + chevron, and height-animated expand as Encounters' own cards.
+function RecordCard({ item, isExpanded, onToggle }) {
   const { t } = useLanguage();
+  const color = item.tone === "danger" ? T.danger : T.primary;
   return (
-    <div className="px-4 py-3" style={{ backgroundColor: T.light }}>
-      <DetailRow label="Limits">{t(detail.limits)}</DetailRow>
-      <DetailRow label="Verified By">{t(detail.verifiedBy)}</DetailRow>
-      <DetailRow label="Verification date">{detail.verificationDate}</DetailRow>
-    </div>
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={cardSpring}
+      className="border rounded-md bg-white overflow-hidden"
+      style={{ borderColor: T.border }}
+    >
+      <button onClick={onToggle} className="w-full text-left px-4 py-3 hover:bg-black/[0.02]">
+        <div className="flex items-center justify-between text-[13px] mb-1" style={{ color: T.gray600 }}>
+          <span>
+            {item.date}
+            {item.severity && <SeverityDots severity={item.severity} />}
+          </span>
+          <span>{item.source}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[14px] font-semibold" style={{ color }}>{t(item.label)}</span>
+          <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="shrink-0">
+            <ChevronDown size={16} style={{ color }} />
+          </motion.span>
+        </div>
+      </button>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            key="detail"
+            className="overflow-hidden border-t"
+            style={{ borderColor: T.border }}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+          >
+            <RecordDetailBlock item={item} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
+
+// Dutch for the BgZ categories above. Kept next to the records instead of in
+// the main NL dictionary because it's mostly mock content; merged into NL at
+// module load, so t() resolves these exactly like every other entry.
+// Category names follow the Figma "Edit dashboard" frame's own Dutch labels.
+Object.assign(NL, {
+  // Category names (left rail + list titles)
+  "Allergies": "Allergieën",
+  "Medication": "Medicatie",
+  "Procedures": "Verrichtingen",
+  "Laboratory results": "Laboratoriumuitslagen",
+  "Healthcare providers": "Zorgverleners",
+  "Alerts": "Waarschuwingen",
+  "Functional status": "Functionele status",
+  "Social history": "Sociale anamnese",
+  "Contact persons": "Contactpersonen",
+  "Medical devices": "Medische hulpmiddelen",
+  "Vaccinations": "Vaccinaties",
+  "Demographics and identification": "Demografie en identificatie",
+  "Financial information": "Financiële informatie",
+
+  // Status pills — scoped, since "Resolved" is already "Afgerond" for tasks
+  "px360Phase:Past": "Verleden",
+  "px360Phase:Planned": "Gepland",
+  "px360Phase:Active": "Actueel",
+  "px360Phase:Resolved": "Niet actueel",
+  "px360Phase:Current": "Actueel",
+  "px360Phase:Previous": "Eerder",
+  "px360Phase:Stopped": "Gestopt",
+  "px360Phase:All": "Alle",
+  "No records in this view.": "Geen gegevens in deze weergave.",
+
+  // Record field labels
+  "Reaction": "Reactie",
+  "Severity": "Ernst",
+  "Criticality": "Kritiek",
+  "Indication": "Indicatie",
+  "Route": "Toedieningsweg",
+  "Prescriber": "Voorschrijver",
+  "End date": "Einddatum",
+  "Performed by": "Uitgevoerd door",
+  "Result": "Uitslag",
+  "Reference range": "Referentiewaarde",
+  "Interpretation": "Interpretatie",
+  "Role": "Rol",
+  "Method": "Methode",
+  "Relationship": "Relatie",
+  "Dose": "Dosis",
+  "Date of birth": "Geboortedatum",
+  "Gender": "Geslacht",
+  "Policy number": "Polisnummer",
+
+  // Record field values
+  "RESOLVED": "NIET ACTUEEL",
+  "STOPPED": "GESTOPT",
+  "Unconfirmed": "Niet bevestigd",
+  "Severe": "Ernstig",
+  "Moderate": "Matig",
+  "Mild": "Licht",
+  "High": "Hoog",
+  "Low": "Laag",
+  "Left": "Links",
+  "Male": "Man",
+  "Oral": "Oraal",
+  "Subcutaneous": "Subcutaan",
+  "Inhalation": "Inhalatie",
+  "Intravenous": "Intraveneus",
+  "Opioid": "Opioïde",
+  "Benzodiazepine": "Benzodiazepine",
+  "Inhaler": "Inhalator",
+  "Oral antidiabetic": "Oraal antidiabeticum",
+  "Chemotherapy": "Chemotherapie",
+  "At home": "Thuis",
+  "At rest": "In rust",
+  "At rest, room air": "In rust, zonder zuurstof",
+  "Sitting, left arm": "Zittend, linkerarm",
+  "Annual": "Jaarlijks",
+  "Booster": "Booster",
+  "Single dose": "Eenmalig",
+  "Spouse": "Echtgenote",
+  "Daughter": "Dochter",
+  "Informal caregiver": "Mantelzorger",
+  "Informal representative for medical decisions": "Informele vertegenwoordiger voor medische beslissingen",
+  "Main practitioner": "Hoofdbehandelaar",
+  "Home care, palliative nursing": "Thuiszorg, palliatieve verpleging",
+  "Treating specialist, lung carcinoma": "Behandelend specialist, longcarcinoom",
+  "Treating specialist, COPD": "Behandelend specialist, COPD",
+  "Treating specialist, diabetes": "Behandelend specialist, diabetes",
+  "Regional Homecare": "Regionale Thuiszorg",
+  "Dr. M. Henley (General Practitioner)": "Dr. M. Henley (Huisarts)",
+  "Dr. S. Janssen (Pulmonologist)": "Dr. S. Janssen (Longarts)",
+  "Dr. R. de Wit (Pulmonologist)": "Dr. R. de Wit (Longarts)",
+  "Dr. L. Bakker (Internist)": "Dr. L. Bakker (Internist)",
+  "Dr. P. Visser (Radiation Oncology)": "Dr. P. Visser (Radiotherapie)",
+  "Type 2 diabetes mellitus": "Diabetes mellitus type 2",
+  "Metastatic non-small-cell lung carcinoma": "Gemetastaseerd niet-kleincellig longcarcinoom",
+  "Suspected lung carcinoma": "Verdenking longcarcinoom",
+  "Fall risk": "Valrisico",
+
+  // Diagnoses
+  "Diagnosis | Community-acquired pneumonia": "Diagnose | Buiten het ziekenhuis opgelopen pneumonie",
+  "Right lower lobe pneumonia during an admission for acute breathlessness; treated with oral antibiotics.":
+    "Pneumonie rechter onderkwab tijdens opname voor acute kortademigheid; behandeld met orale antibiotica.",
+  "Lung, right lower lobe": "Long, rechter onderkwab",
+
+  // Treatment restrictions
+  "Artificial ventilation | Not desired": "Kunstmatige beademing | Niet gewenst",
+  "Artificial nutrition and hydration | Declined": "Kunstmatige voeding en vocht | Afgewezen",
+  "Antibiotics | Oral only": "Antibiotica | Alleen oraal",
+  "No intubation or ICU admission": "Geen intubatie of IC-opname",
+  "Comfort feeding only": "Alleen comfortvoeding",
+  
+  // Allergies
+  "Medication | Penicillin": "Medicatie | Penicilline",
+  "Medication | Iodinated contrast medium": "Medicatie | Jodiumhoudend contrastmiddel",
+  "Medication | Codeine (intolerance)": "Medicatie | Codeïne (intolerantie)",
+  "Environmental | Wasp venom": "Omgeving | Wespengif",
+  "Urticaria and facial swelling": "Urticaria en zwelling van het gezicht",
+  "Generalised rash after CT chest": "Gegeneraliseerde huiduitslag na CT thorax",
+  "Severe nausea and vomiting": "Ernstige misselijkheid en braken",
+  "Local swelling": "Lokale zwelling",
+
+  // Medication
+  "Morphine oral solution 5 mg/ml | 2.5–5 mg as needed, max 6× per day":
+    "Morfine drank 5 mg/ml | 2,5–5 mg zo nodig, max. 6× per dag",
+  "Midazolam 5 mg/ml | 2.5–5 mg subcutaneous as needed": "Midazolam 5 mg/ml | 2,5–5 mg subcutaan zo nodig",
+  "Tiotropium/olodaterol 2.5/2.5 mcg inhaler | 2 puffs once daily":
+    "Tiotropium/olodaterol 2,5/2,5 mcg inhalator | 1× daags 2 inhalaties",
+  "Metformin 500 mg | 1 tablet 2× daily, with meals": "Metformine 500 mg | 2× daags 1 tablet, bij de maaltijd",
+  "Carboplatin/pemetrexed | 4 cycles, every 3 weeks": "Carboplatine/pemetrexed | 4 kuren, elke 3 weken",
+  "Breathlessness and pain": "Kortademigheid en pijn",
+  "Anxiety or terminal restlessness (rescue kit at home)": "Angst of terminale onrust (noodset thuis)",
+
+  // Procedures
+  "Indwelling pleural catheter placement | Right": "Plaatsing getunnelde pleuracatheter | Rechts",
+  "Palliative radiotherapy | Bone metastasis, left hip": "Palliatieve radiotherapie | Botmetastase, linkerheup",
+  "Pleural puncture | Right": "Pleurapunctie | Rechts",
+  "Bronchoscopy with biopsy | Right upper lobe": "Bronchoscopie met biopt | Rechter bovenkwab",
+  "Knee arthroscopy | Right": "Kniearthroscopie | Rechts",
+  "Recurrent malignant pleural effusion": "Recidiverend maligne pleuravocht",
+  "Pain from bone metastasis": "Pijn door botmetastase",
+  "Pleural effusion during admission for acute breathlessness": "Pleuravocht tijdens opname voor acute kortademigheid",
+
+  // Laboratory results
+  "Haemoglobin | 7.1 mmol/L": "Hemoglobine | 7,1 mmol/L",
+  "eGFR | 52 ml/min/1.73m²": "eGFR | 52 ml/min/1,73m²",
+  "HbA1c | 58 mmol/mol": "HbA1c | 58 mmol/mol",
+  "Albumin | 31 g/L": "Albumine | 31 g/L",
+  "CRP | 86 mg/L": "CRP | 86 mg/L",
+  "7.1 mmol/L": "7,1 mmol/L",
+  "8.5–11.0 mmol/L": "8,5–11,0 mmol/L",
+  "52 ml/min/1.73m²": "52 ml/min/1,73m²",
+  "> 60 ml/min/1.73m²": "> 60 ml/min/1,73m²",
+
+  // Healthcare providers
+  "General practitioner | Dr. M. Henley": "Huisarts | Dr. M. Henley",
+  "Community nurse | Mary Brown": "Wijkverpleegkundige | Mary Brown",
+  "Medical oncologist | Dr. E. Carter": "Internist-oncoloog | Dr. E. Carter",
+  "Pulmonologist | Dr. S. Janssen": "Longarts | Dr. S. Janssen",
+  "Internist | Dr. L. Bakker": "Internist | Dr. L. Bakker",
+
+  // Alerts
+  "Oxygen at home | No open flames or smoking": "Zuurstof thuis | Geen open vuur of roken",
+  "Reduced renal function | Adjust dosing": "Verminderde nierfunctie | Dosering aanpassen",
+  "Fall risk | Increased": "Valrisico | Verhoogd",
+  "MRSA carrier | Negative on rescreening": "MRSA-drager | Negatief bij herscreening",
+  "Home oxygen concentrator in use.": "Zuurstofconcentrator thuis in gebruik.",
+  "eGFR 52; review metformin and opioid dosing.": "eGFR 52; dosering metformine en opioïden herzien.",
+  "Fall at home in 2022; walks with a rollator.": "Val thuis in 2022; loopt met een rollator.",
+  "Positive screening in 2023, negative on three follow-up cultures.":
+    "Positieve screening in 2023, negatief bij drie vervolgkweken.",
+
+  // Functional status
+  "Performance status | WHO 3": "Performance status | WHO 3",
+  "Mobility | Short distances with rollator": "Mobiliteit | Korte afstanden met rollator",
+  "Self-care | Needs help washing and dressing": "Zelfzorg | Hulp nodig bij wassen en aankleden",
+  "Breathlessness | MRC grade 4": "Kortademigheid | MRC-graad 4",
+  "In bed or chair more than half of the day; capable of only limited self-care.":
+    "Meer dan de helft van de dag in bed of stoel; slechts beperkt in staat tot zelfzorg.",
+  "Walks indoors with a rollator; uses a wheelchair outdoors.": "Loopt binnen met een rollator; buiten in een rolstoel.",
+  "Home care visits twice daily.": "Thuiszorg komt twee keer per dag.",
+  "Stops for breath after about 100 metres or a few minutes on level ground.":
+    "Moet na ongeveer 100 meter of enkele minuten op vlak terrein stoppen om op adem te komen.",
+
+  // Vital signs
+  "Blood pressure | 124/76 mmHg": "Bloeddruk | 124/76 mmHg",
+  "Oxygen saturation | 91%": "Zuurstofsaturatie | 91%",
+  "Heart rate | 92 /min": "Hartfrequentie | 92 /min",
+  "Body weight | 71 kg": "Lichaamsgewicht | 71 kg",
+  "Body height | 178 cm": "Lichaamslengte | 178 cm",
+  "10 kg weight loss in the past year": "10 kg gewichtsverlies in het afgelopen jaar",
+
+  // Social history
+  "Living situation | At home with wife": "Woonsituatie | Thuis met echtgenote",
+  "Participation | Retired carpenter": "Participatie | Gepensioneerd timmerman",
+  "Tobacco use | Former smoker": "Tabaksgebruik | Voormalig roker",
+  "Alcohol use | 1–2 units per week": "Alcoholgebruik | 1–2 eenheden per week",
+  "Nutrition advice | Energy- and protein-rich diet": "Voedingsadvies | Energie- en eiwitrijk dieet",
+  "Single-family home; bedroom moved to the ground floor.": "Eengezinswoning; slaapkamer verplaatst naar de begane grond.",
+  "Informal care from wife Petra and daughter Anne.": "Mantelzorg door echtgenote Petra en dochter Anne.",
+  "40 pack-years; quit in 2019.": "40 pakjaren; gestopt in 2019.",
+  "Small frequent meals and sip feeds, per dietitian.": "Kleine, frequente maaltijden en drinkvoeding, volgens diëtist.",
+
+  // Contact persons
+  "First contact | Petra de Vries": "Eerste contactpersoon | Petra de Vries",
+  "Second contact | Anne de Vries": "Tweede contactpersoon | Anne de Vries",
+  "Legal representative | None formally appointed": "Wettelijk vertegenwoordiger | Niet formeel benoemd",
+  "Patient has full decision-making capacity at present.": "Patiënt is op dit moment volledig wilsbekwaam.",
+
+  // Medical devices
+  "Oxygen concentrator | 2 L/min on exertion and at night": "Zuurstofconcentrator | 2 L/min bij inspanning en 's nachts",
+  "Hospital bed | Adjustable": "Hoog-laagbed | Verstelbaar",
+  "Rollator | Walking aid": "Rollator | Loophulpmiddel",
+  "Blood glucose meter | Self-monitoring": "Bloedglucosemeter | Zelfcontrole",
+  "Reduced mobility, home care": "Verminderde mobiliteit, thuiszorg",
+
+  // Vaccinations
+  "COVID-19 | Autumn booster 2025": "COVID-19 | Najaarsbooster 2025",
+  "Influenza | Seasonal vaccine 2025": "Influenza | Griepprik 2025",
+  "Influenza | Seasonal vaccine 2024": "Influenza | Griepprik 2024",
+  "Pneumococcal | PPV23": "Pneumokokken | PPV23",
+
+  // Demographics and identification
+  "Name | De Vries, Jan": "Naam | De Vries, Jan",
+  "Identification | ID 161 885 4347": "Identificatie | ID 161 885 4347",
+  "Address | Violenstraat 35, 3551 BB Utrecht": "Adres | Violenstraat 35, 3551 BB Utrecht",
+  "Language | Dutch": "Taal | Nederlands",
+  "14/03/1953 (73 years)": "14/03/1953 (73 jaar)",
+  "No interpreter needed.": "Geen tolk nodig.",
+
+  // Financial information
+  "Health insurance | FBTO basic insurance": "Zorgverzekering | FBTO basisverzekering",
+  "Supplementary insurance | FBTO supplementary module": "Aanvullende verzekering | FBTO aanvullende module",
+  "Long-term care (Wlz) | Indication requested": "Langdurige zorg (Wlz) | Indicatie aangevraagd",
+  "Palliative-terminal care indication requested from the CIZ.": "Indicatie palliatief-terminale zorg aangevraagd bij het CIZ.",
+});
 
 // The left-rail live indicator (n/5 counting up, then a check) — shared by
 // all three category rows since they're all populated by the same
@@ -2042,22 +3178,33 @@ function SourcesHeader({ title, sourcesOpen, setSourcesOpen, sourceStatus, loade
   );
 }
 
-// The Past/Planned status pills + Sort + Filters row — identical across
-// Encounters/Diagnoses/Treatment (only one is ever mounted at a time, since
-// the three categories are mutually exclusive), so `sortMenuOpen`/`sortOrder`
-// and the filter drawer they open are safely shared EncountersSection state
-// rather than duplicated per category.
-function CategoryToolbar({ pastCount, filterCount, sortOrder, sortMenuOpen, setSortMenuOpen, sortMenuRef, changeSortOrder, onOpenFilters }) {
+// The status pills + Sort + Filters row — identical across every category
+// (only one is ever mounted at a time, since categories are mutually
+// exclusive), so `sortMenuOpen`/`sortOrder` and the filter drawer they open
+// are safely shared EncountersSection state rather than duplicated per
+// category. `phases` is [{ key, label, count }]; the pills filter the list.
+function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, sortOrder, sortMenuOpen, setSortMenuOpen, sortMenuRef, changeSortOrder, onOpenFilters }) {
   const { t } = useLanguage();
   return (
-    <div className="flex items-center justify-between mb-3">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
       <div className="flex items-center gap-2">
-        <span className="text-white text-sm font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: T.primary }}>{t("Past")} ({pastCount})</span>
-        <span className="text-sm px-3 py-1" style={{ color: T.gray600 }}>{t("Planned")} (0)</span>
+        {phases.map((p) => {
+          const active = p.key === activePhase;
+          return (
+            <button
+              key={p.key}
+              onClick={() => onPhaseChange(p.key)}
+              className={`text-sm px-3 py-1 rounded-full whitespace-nowrap ${active ? "text-white font-semibold" : ""}`}
+              style={active ? { backgroundColor: T.primary } : { color: T.gray600 }}
+            >
+              {t(p.label, "px360Phase")} ({p.count})
+            </button>
+          );
+        })}
       </div>
       <div className="flex items-center gap-4 text-sm" style={{ color: T.primary }}>
         <div className="relative" ref={sortMenuRef}>
-          <button onClick={() => setSortMenuOpen((v) => !v)} className="flex items-center gap-1">
+          <button onClick={() => setSortMenuOpen((v) => !v)} className="flex items-center gap-1 whitespace-nowrap">
             <ArrowUpDown size={14} /> {t("Sort:")} {sortOrder === "oldest" ? t("Oldest first") : t("Newest first")}
           </button>
           <AnimatePresence>
@@ -2182,10 +3329,11 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
   const [statusFilters, setStatusFilters] = useState({ arrived: true, planned: true });
   const [careProviderQuery, setCareProviderQuery] = useState("");
   const [drawerSections, setDrawerSections] = useState({ status: false, encounterType: true, careProvider: false });
-  // Diagnoses/Treatment get the same Filters drawer, scoped to their own
-  // (much simpler) type taxonomy — see DIAGNOSIS_FILTER_TYPES/TREATMENT_FILTER_TYPES.
-  const [diagnosisTypeFilters, setDiagnosisTypeFilters] = useState(new Set());
-  const [treatmentTypeFilters, setTreatmentTypeFilters] = useState(new Set());
+  // Record-list categories get the same Filters drawer, scoped to their own
+  // (much simpler) type taxonomy — see categoryFilterTypes. Keyed by category.
+  const [recordTypeFilters, setRecordTypeFilters] = useState({});
+  // Which status pill is selected, per category (defaults to its first one).
+  const [phaseByCategory, setPhaseByCategory] = useState({});
 
   const allItemsRef = useRef([]);
   const timeoutsRef = useRef([]);
@@ -2342,27 +3490,34 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
     (!statusFilters.arrived || !statusFilters.planned ? 1 : 0) +
     (careProviderQuery.trim() ? 1 : 0);
 
-  const toggleDiagnosisType = (key) => {
-    setDiagnosisTypeFilters((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
-  const toggleTreatmentType = (key) => {
-    setTreatmentTypeFilters((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
+  const category = PX360_CATEGORIES.find((c) => c.key === activeCategory);
+  const phaseKeys = category.phases ? category.phases.map((p) => p.key) : ["all"];
+  const activePhase = phaseByCategory[activeCategory] ?? phaseKeys[0];
+  const setActivePhase = (key) => setPhaseByCategory((prev) => ({ ...prev, [activeCategory]: key }));
 
-  const displayedDiagnoses = [...DIAGNOSIS_ENTRIES]
-    .filter((item) => diagnosisTypeFilters.size === 0 || diagnosisTypeFilters.has(simpleTypeKey(item)))
+  const activeTypeFilters = recordTypeFilters[activeCategory] ?? new Set();
+  const toggleRecordType = (key) => {
+    setRecordTypeFilters((prev) => {
+      const next = new Set(prev[activeCategory] ?? []);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return { ...prev, [activeCategory]: next };
+    });
+  };
+  const clearRecordTypes = () => setRecordTypeFilters((prev) => ({ ...prev, [activeCategory]: new Set() }));
+
+  // A record category's list: the page-level organisation/time dropdowns and
+  // the selected status pill, then the drawer's Type filter, then sort.
+  const orgNameAllowed = (name) => !sourceFilter || SOURCE_CONFIG.some((s) => s.name === name && sourceFilter.has(s.id));
+  const recordsInView = category.entries
+    ? category.entries.filter((item) => orgNameAllowed(item.source) && recordWithinTimeWindow(item, timeFilter))
+    : [];
+  const recordsInPhase = recordsInView.filter((item) => activePhase === "all" || item.phase === activePhase);
+  const displayedRecords = recordsInPhase
+    .filter((item) => activeTypeFilters.size === 0 || activeTypeFilters.has(simpleTypeKey(item)))
     .sort((a, b) => (sortOrder === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date)));
-  const displayedRestrictions = [...RESTRICTION_ENTRIES]
-    .filter((item) => treatmentTypeFilters.size === 0 || treatmentTypeFilters.has(simpleTypeKey(item)))
-    .sort((a, b) => (sortOrder === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date)));
+  const recordPhases = category.phases
+    ? category.phases.map((p) => ({ ...p, count: recordsInView.filter((item) => item.phase === p.key).length }))
+    : [{ key: "all", label: "All", count: recordsInView.length }];
 
   // Filters are a pure view over whatever has already merged in — they never
   // change what's fetched, only what's shown. Source/time come from the
@@ -2383,7 +3538,9 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
     return true;
   };
 
-  const displayedItems = visibleItems.filter(passesFilters);
+  // Every mock encounter is a past one, so the Planned pill shows an empty list.
+  const encountersPhase = phaseByCategory.encounters ?? "past";
+  const displayedItems = encountersPhase === "planned" ? [] : visibleItems.filter(passesFilters);
 
   // Records known to exist on the server but not yet fetched (e.g. Maastricht
   // reported total 16 and delivered 10). This is what "Show more" loads —
@@ -2396,37 +3553,26 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
   return (
     <>
     <div className="grid grid-cols-[300px_1fr] gap-10">
-      <div className="flex flex-col self-start sticky top-6">
-        <button
-          onClick={() => setActiveCategory("encounters")}
-          className="font-semibold text-sm tracking-wide px-4 py-3.5 flex items-center justify-between gap-2.5 rounded-t-sm text-left"
-          style={{ backgroundColor: activeCategory === "encounters" ? T.primary : "#fff", color: activeCategory === "encounters" ? "#fff" : T.bodyText }}
-        >
-          <span className="flex items-center gap-2.5">
-            <CalendarDays size={16} style={{ color: activeCategory === "encounters" ? "#fff" : T.primary }} /> {t("ENCOUNTERS")}
-          </span>
-          <SourceCountIndicator loadedCount={loadedCount} allSettled={allSettled} isActive={activeCategory === "encounters"} />
-        </button>
-        <button
-          onClick={() => setActiveCategory("diagnoses")}
-          className="border border-t-0 border-[#DEE2E6] text-sm font-semibold tracking-wide px-4 py-3.5 flex items-center justify-between gap-2.5 text-left"
-          style={{ backgroundColor: activeCategory === "diagnoses" ? T.primary : "#fff", color: activeCategory === "diagnoses" ? "#fff" : T.bodyText }}
-        >
-          <span className="flex items-center gap-2.5">
-            <Stethoscope size={16} style={{ color: activeCategory === "diagnoses" ? "#fff" : T.primary }} /> {t("COMPLAINTS AND DIAGNOSES")}
-          </span>
-          <SourceCountIndicator loadedCount={loadedCount} allSettled={allSettled} isActive={activeCategory === "diagnoses"} />
-        </button>
-        <button
-          onClick={() => setActiveCategory("treatment")}
-          className="border border-t-0 border-[#DEE2E6] text-sm font-semibold tracking-wide px-4 py-3.5 flex items-center justify-between gap-2.5 text-left"
-          style={{ backgroundColor: activeCategory === "treatment" ? T.primary : "#fff", color: activeCategory === "treatment" ? "#fff" : T.bodyText }}
-        >
-          <span className="flex items-center gap-2.5">
-            <ClipboardList size={16} style={{ color: activeCategory === "treatment" ? "#fff" : T.primary }} /> {t("TREATMENT RESTRICTIONS")}
-          </span>
-          <SourceCountIndicator loadedCount={loadedCount} allSettled={allSettled} isActive={activeCategory === "treatment"} />
-        </button>
+      {/* Tall enough for all BgZ categories to scroll within the rail itself
+          when the page is scrolled down a long Encounters list. */}
+      <div className="flex flex-col self-start sticky top-6 max-h-[calc(100vh-190px)] overflow-y-auto rounded-sm border border-[#DEE2E6]">
+        {PX360_CATEGORIES.map((c, i) => {
+          const isActive = activeCategory === c.key;
+          const Icon = c.icon;
+          return (
+            <button
+              key={c.key}
+              onClick={() => setActiveCategory(c.key)}
+              className={`shrink-0 font-semibold text-sm tracking-wide uppercase px-4 py-3 flex items-center justify-between gap-2.5 text-left ${i > 0 ? "border-t border-[#DEE2E6]" : ""}`}
+              style={{ backgroundColor: isActive ? T.primary : "#fff", color: isActive ? "#fff" : T.bodyText }}
+            >
+              <span className="flex items-center gap-2.5">
+                <Icon size={16} className="shrink-0" style={{ color: isActive ? "#fff" : T.primary }} /> {t(c.label)}
+              </span>
+              <SourceCountIndicator loadedCount={loadedCount} allSettled={allSettled} isActive={isActive} />
+            </button>
+          );
+        })}
       </div>
 
       <div>
@@ -2444,7 +3590,14 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
         />
 
         <CategoryToolbar
-          pastCount={24}
+          phases={[
+            // Past is the encounter history's known server-side total, not
+            // what has loaded so far — same hardcoded 24 as before.
+            { key: "past", label: "Past", count: 24 },
+            { key: "planned", label: "Planned", count: 0 },
+          ]}
+          activePhase={encountersPhase}
+          onPhaseChange={(key) => setPhaseByCategory((prev) => ({ ...prev, encounters: key }))}
           filterCount={activeFilterCount}
           sortOrder={sortOrder}
           sortMenuOpen={sortMenuOpen}
@@ -2478,7 +3631,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
 
         <div className="flex flex-col gap-2">
           <AnimatePresence initial={false}>
-            {visibleItems.length === 0 && (
+            {visibleItems.length === 0 && encountersPhase !== "planned" && (
               <motion.div
                 key="empty-state"
                 className="flex items-center justify-center gap-2 text-sm py-6 text-center border rounded-md"
@@ -2491,7 +3644,19 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
                 {t("Loading first results…")}
               </motion.div>
             )}
-            {visibleItems.length > 0 && displayedItems.length === 0 && (
+            {encountersPhase === "planned" && (
+              <motion.div
+                key="planned-empty"
+                className="text-sm py-6 text-center border rounded-md"
+                style={{ color: T.gray500, borderColor: T.border }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.12 } }}
+              >
+                {t("No records in this view.")}
+              </motion.div>
+            )}
+            {encountersPhase !== "planned" && visibleItems.length > 0 && displayedItems.length === 0 && (
               <motion.div
                 key="filtered-empty"
                 className="text-sm py-6 text-center border rounded-md"
@@ -2563,7 +3728,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
         </div>
 
         <AnimatePresence initial={false}>
-          {serverRemaining > 0 && (
+          {serverRemaining > 0 && encountersPhase !== "planned" && (
             <motion.div
               key="show-more"
               className="flex justify-center mt-4"
@@ -2588,10 +3753,10 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
         </>
         )}
 
-        {activeCategory === "diagnoses" && (
+        {category.entries && (
           <div>
             <SourcesHeader
-              title="Complaints and diagnoses"
+              title={category.label}
               sourcesOpen={sourcesOpen}
               setSourcesOpen={setSourcesOpen}
               sourceStatus={sourceStatus}
@@ -2599,11 +3764,13 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
               allSettled={allSettled}
               lastUpdated={lastUpdated}
               onRefresh={() => setRunId((r) => r + 1)}
-              categoryEntries={DIAGNOSIS_ENTRIES}
+              categoryEntries={category.entries}
             />
             <CategoryToolbar
-              pastCount={DIAGNOSIS_ENTRIES.length}
-              filterCount={diagnosisTypeFilters.size}
+              phases={recordPhases}
+              activePhase={activePhase}
+              onPhaseChange={setActivePhase}
+              filterCount={activeTypeFilters.size}
               sortOrder={sortOrder}
               sortMenuOpen={sortMenuOpen}
               setSortMenuOpen={setSortMenuOpen}
@@ -2611,135 +3778,23 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
               changeSortOrder={changeSortOrder}
               onOpenFilters={() => setFiltersOpen(true)}
             />
-            {displayedDiagnoses.length === 0 && (
+            {recordsInPhase.length === 0 && (
+              <div className="text-sm py-6 text-center border rounded-md" style={{ color: T.gray500, borderColor: T.border }}>
+                {t("No records in this view.")}
+              </div>
+            )}
+            {recordsInPhase.length > 0 && displayedRecords.length === 0 && (
               <div className="text-sm py-6 text-center border rounded-md" style={{ color: T.gray500, borderColor: T.border }}>
                 {t("No entries match the selected filters.")}{" "}
-                <button onClick={() => setDiagnosisTypeFilters(new Set())} className="underline font-semibold" style={{ color: T.primary }}>
+                <button onClick={clearRecordTypes} className="underline font-semibold" style={{ color: T.primary }}>
                   {t("Clear filters")}
                 </button>
               </div>
             )}
             <div className="flex flex-col gap-2">
-              {displayedDiagnoses.map((item) => {
-                const isExpanded = !!expandedIds[item.id];
-                return (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={cardSpring}
-                    className="border rounded-md bg-white overflow-hidden"
-                    style={{ borderColor: T.border }}
-                  >
-                    <button onClick={() => toggleExpand(item.id)} className="w-full text-left px-4 py-3 hover:bg-black/[0.02]">
-                      <div className="flex items-center justify-between text-[13px] mb-1" style={{ color: T.gray600 }}>
-                        <span>{item.date}</span>
-                        <span>{item.source}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[14px] font-semibold" style={{ color: T.primary }}>{t(item.label)}</span>
-                        <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="shrink-0">
-                          <ChevronDown size={16} style={{ color: T.primary }} />
-                        </motion.span>
-                      </div>
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {isExpanded && (
-                        <motion.div
-                          key="detail"
-                          className="overflow-hidden border-t"
-                          style={{ borderColor: T.border }}
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.25, ease: "easeInOut" }}
-                        >
-                          <DiagnosisDetailBlock detail={item.detail} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {activeCategory === "treatment" && (
-          <div>
-            <SourcesHeader
-              title="Treatment restrictions"
-              sourcesOpen={sourcesOpen}
-              setSourcesOpen={setSourcesOpen}
-              sourceStatus={sourceStatus}
-              loadedCount={loadedCount}
-              allSettled={allSettled}
-              lastUpdated={lastUpdated}
-              onRefresh={() => setRunId((r) => r + 1)}
-              categoryEntries={RESTRICTION_ENTRIES}
-            />
-            <CategoryToolbar
-              pastCount={RESTRICTION_ENTRIES.length}
-              filterCount={treatmentTypeFilters.size}
-              sortOrder={sortOrder}
-              sortMenuOpen={sortMenuOpen}
-              setSortMenuOpen={setSortMenuOpen}
-              sortMenuRef={sortMenuRef}
-              changeSortOrder={changeSortOrder}
-              onOpenFilters={() => setFiltersOpen(true)}
-            />
-            {displayedRestrictions.length === 0 && (
-              <div className="text-sm py-6 text-center border rounded-md" style={{ color: T.gray500, borderColor: T.border }}>
-                {t("No entries match the selected filters.")}{" "}
-                <button onClick={() => setTreatmentTypeFilters(new Set())} className="underline font-semibold" style={{ color: T.primary }}>
-                  {t("Clear filters")}
-                </button>
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              {displayedRestrictions.map((item) => {
-                const isExpanded = !!expandedIds[item.id];
-                return (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={cardSpring}
-                    className="border rounded-md bg-white overflow-hidden"
-                    style={{ borderColor: T.border }}
-                  >
-                    <button onClick={() => toggleExpand(item.id)} className="w-full text-left px-4 py-3 hover:bg-black/[0.02]">
-                      <div className="flex items-center justify-between text-[13px] mb-1" style={{ color: T.gray600 }}>
-                        <span>{item.date}</span>
-                        <span>{item.source}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[14px] font-semibold" style={{ color: T.danger }}>{t(item.label)}</span>
-                        <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="shrink-0">
-                          <ChevronDown size={16} style={{ color: T.danger }} />
-                        </motion.span>
-                      </div>
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {isExpanded && (
-                        <motion.div
-                          key="detail"
-                          className="overflow-hidden border-t"
-                          style={{ borderColor: T.border }}
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.25, ease: "easeInOut" }}
-                        >
-                          <RestrictionDetailBlock detail={item.detail} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
+              {displayedRecords.map((item) => (
+                <RecordCard key={item.id} item={item} isExpanded={!!expandedIds[item.id]} onToggle={() => toggleExpand(item.id)} />
+              ))}
             </div>
           </div>
         )}
@@ -2832,39 +3887,19 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter }) {
                 </>
               )}
 
-              {activeCategory === "diagnoses" && (
+              {category.entries && (
                 <>
                   <div className="flex-1 overflow-y-auto">
                     <FilterAccordion title={t("Type")} open onToggle={() => {}}>
-                      {DIAGNOSIS_FILTER_TYPES.map((ft) => (
-                        <FilterCheckbox key={ft.key} label={t(ft.label)} checked={diagnosisTypeFilters.has(ft.key)} onChange={() => toggleDiagnosisType(ft.key)} />
+                      {categoryFilterTypes(category, t).map((ft) => (
+                        <FilterCheckbox key={ft.key} label={ft.label} checked={activeTypeFilters.has(ft.key)} onChange={() => toggleRecordType(ft.key)} />
                       ))}
                     </FilterAccordion>
                   </div>
 
-                  {diagnosisTypeFilters.size > 0 && (
+                  {activeTypeFilters.size > 0 && (
                     <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: T.border }}>
-                      <button onClick={() => setDiagnosisTypeFilters(new Set())} className="text-[14px] font-semibold" style={{ color: T.primary }}>
-                        {t("Clear all filters")}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeCategory === "treatment" && (
-                <>
-                  <div className="flex-1 overflow-y-auto">
-                    <FilterAccordion title={t("Type")} open onToggle={() => {}}>
-                      {TREATMENT_FILTER_TYPES.map((ft) => (
-                        <FilterCheckbox key={ft.key} label={t(ft.label)} checked={treatmentTypeFilters.has(ft.key)} onChange={() => toggleTreatmentType(ft.key)} />
-                      ))}
-                    </FilterAccordion>
-                  </div>
-
-                  {treatmentTypeFilters.size > 0 && (
-                    <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: T.border }}>
-                      <button onClick={() => setTreatmentTypeFilters(new Set())} className="text-[14px] font-semibold" style={{ color: T.primary }}>
+                      <button onClick={clearRecordTypes} className="text-[14px] font-semibold" style={{ color: T.primary }}>
                         {t("Clear all filters")}
                       </button>
                     </div>

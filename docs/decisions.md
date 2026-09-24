@@ -987,3 +987,26 @@ text or a block-level element, which `text-align` alone can't guarantee.
 Ruled out: adding `ml-auto` directly on `ToggleField`'s button instead — works too, but fixing the
 wrapper is more robust against future children of either kind being added to this column.
 Related: [docs/features/set-plan-and-activate.md](features/set-plan-and-activate.md)
+
+**2026-09-24 — Expanded PX360 to all BgZ categories, data-driven**
+Why: user asked for PX360 to present the standard BgZ categories. Two user-research priority lists
+(doctors; nurses/administration) set the order, but all of them should be there. That means 14 new
+categories next to the existing 3. Each of the existing 3 was hand-written in three places (rail
+button, list branch, Filters drawer branch), so first turned them into one `PX360_CATEGORIES` list
+with a generic record list (`RecordCard` / `RecordDetailBlock`). Then the new categories were just
+data: 3–5 records each, written around this patient's existing story (PZP, Encounters, HIS side
+panel), per the user's "realistic case" requirement. The category list follows the Figma "Edit
+dashboard" frame, which already lists BgZ, plus Laboratory results (BgZ "Uitslagen"), which maps to
+"Diagnostics" in the research lists. The same list will drive the upcoming Dashboard and Customize
+view. The status pills became real filters with a BgZ-appropriate pair per category, and the page's
+organisation/time dropdowns now apply to every category, not just Encounters. Both are needed for
+the categories to behave consistently. This reverses the 2026-08-31 choice to keep the pills static
+"because Encounters' own aren't interactive": all categories now change together, so they stay
+consistent.
+Ruled out: copying the hand-written branch 14 more times (thousands of duplicated lines, and the
+Dashboard would need a third copy); including the non-BgZ items from the research lists
+("Correspondence", "Current care situation", "Admission and discharge", "Data from other care
+organisations"), which the user said to leave out as likely mistranslations; adding the Dutch mock
+content to the main `NL` dictionary (~200 mock-data lines far away from the data they translate),
+so it's merged in from a block beside the records instead.
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
