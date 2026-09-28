@@ -305,6 +305,81 @@ modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
   up empty. If the open category is hidden, the view falls back to the first visible one. The
   Dashboard and the rail are customised independently.
 
+- **Treatment restrictions are CPR only** (2026-09-28, on request). The artificial ventilation,
+  artificial nutrition and antibiotics records added with the BgZ expansion were removed, along with
+  their Dutch strings. The category keeps its two CPR records: the current "Not for resuscitation"
+  (2026) and the previous "Yes, but with limitations" (2023). The PZP tab's own treatment-wishes
+  section is unchanged.
+
+- **Dashboard timeline widget** (added 2026-09-28, restyled the same day to the Figma "Patient
+  summary" timeline, 13595-373609). The Figma API returned malformed data for that node on every
+  attempt, so sizes and colours were measured from its full-resolution render rather than read from
+  dev mode. `DashboardTimeline` sits above the Dashboard cards, with no card frame:
+  - **Rolling periods** (2026-09-28, replacing the Figma frame's calendar Weekly/Monthly/Yearly,
+    to match how clinicians think about time: "the last 3 months", "what's coming"). The
+    `TIMELINE_RANGES` buttons are 4 weeks, 3 months, 1 year and 5 years. Each window is the last N
+    days, today included, plus a look-ahead for planned care (2 weeks, 4 weeks, 2 months, 3 months),
+    so today sits near the right edge. At today, the title is relative ("Last 3 months" / "and next 4
+    weeks"); once moved away, it becomes a date range. The arrows move the window by one range
+    length, and Today puts it back. Switching range at today stays at today; while browsing, it
+    keeps the same moment centred. The axis unit follows the range: days, Monday weeks, months, or
+    years. In the day view, a "1 Oct" label borrows the next day's column.
+  - **Default span per role** (`TIMELINE_DEFAULT_RANGE`, from the signed-in persona's role): a
+    Community Nurse opens on 4 weeks, a GP on 3 months, anyone else on 1 year. Switching persona
+    re-opens on that role's span. The hover card adds a relative time next to the date
+    ("6 months ago", "in 4 days", via `relativeTime`).
+  - Column headings (in the range's unit; the current one in primary) and bordered lanes
+    with a 160px label column (icon + category name, which opens the category).
+  - One lane per category shown on the Dashboard, drawn from that category's own records and
+    filtered by the organisation dropdown. `TIMELINE_EXCLUDED` leaves out Treatment restrictions
+    (the banner) and, on request, Allergies and Alerts. There are no milestones.
+  - Records with a duration (active: to today; with an "End date": to that date) are labelled pills,
+    light primary if still active and grey if ended. The label is the drug name for medication and
+    the detail part for everything else (`recordToMark`). Bar style, from the user's reference: a
+    3px solid accent at the start, a fill fading from ~32% to ~8% toward a rounded end, primary
+    if active and grey if ended. There's no accent when the record began before the visible period,
+    and the end is square when it runs on past it. Point records are dots (hollow if
+    planned). `packRows` stacks overlapping pills. Rows are packed over the lane's whole history (`packScale`:
+    the zoom's scale, independent of the window position), so each lane is always as tall as its
+    busiest period and every record keeps its row. On request, this stops the timeline changing
+    height while dragging between years.
+  - Encounters are dots. Dots that would overlap merge into one dot with a count (red if it contains
+    an emergency). The dot size steps with the count: 1 is a 10px dot with no number, 2–5 is 20px,
+    6–10 is 26px, and 11+ is 34px. Every encounter circle uses the user's Figma gradient
+    (`encounterDotGradient`: linear, bottom-left to top-right, #0080A3 at 80% fading to 10%; the same
+    stops in red for a circle that holds an emergency). The count is in dark brand blue
+    (`T.secondary`) rather than white, because white would be lost where the fill fades out. Clicking a dot opens `EncounterPeriodPreview` with just those encounters (it shows
+    a notice if the period isn't fully loaded, and has an "Open all encounters" link). The part of the
+    view older than `coverage.boundary` is hatched; clicking it loads older pages.
+  - The timeline never looks more than one year ahead. A window can end at most 365 days after
+    today (`clampStart`, applied to the arrows, range switch and dragging), and the overview strip
+    ends there too.
+  - Within each lane, the block of rows is vertically centred, so a single row of procedure dots
+    sits in the middle of the lane.
+  - An overview strip under the lanes shows the whole history (from the earliest record's year up
+    to one year ahead). It has one row per timeline lane, in lane order (Encounters, Diagnoses,
+    Medication, Procedures; changed on request from rows packed by overlap, which looked like too
+    many categories). Each category's records are thin bars on its own row, and encounters are merged
+    into runs. It has
+    year labels and a highlighted window for the visible period. Dragging it moves the visible
+    window continuously. This changed on request, because it used to jump a whole calendar year at a
+    time. Grabbing inside the window keeps the grab point under the pointer; pressing elsewhere
+    centres the window there. `winStart` is the source of truth. The arrows, Today and the zoom
+    switch snap it back to a calendar period (title "2026" / "September 2026"). Between periods the
+    window is `TIMELINE_SPAN` long, the title shows a range ("Sept 2025 – Sept 2026"), and edge
+    columns are partial (sized by their visible share, label hidden when too narrow). After a snap,
+    marks and the window glide into place over 300ms; while dragging they follow the pointer directly.
+  - A red dashed line marks today. Hovering a record mark (not encounters) shows `RecordHoverCard`,
+    after the user's reference design: date and organisation, the record's name in primary, then the
+    record's own `detail` fields (label/value, "Date" skipped, status in sentence case). It follows
+    the mouse pointer (14px below-right, flipping left/up near the window edges), because a pill can
+    be far wider than where you're pointing. It's rendered once, portalled to `<body>` with
+    `position: fixed`, so no lane or transform can clip or bury it. Clicking a record opens it in
+    Detailed information, on the right status pill and already expanded.
+  - The mark title comes from the "Type | Detail" label: the detail for diagnoses, providers and
+    contact persons (whose prefix is only a type word), and the prefix for everything else, such
+    as drug, procedure and lab test names (`TITLE_FROM_DETAIL`).
+
 ## Open questions
 
 - BgZ has no direct home for four items from the user-research lists ("Correspondence",

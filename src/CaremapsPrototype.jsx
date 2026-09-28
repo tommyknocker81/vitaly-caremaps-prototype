@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useContext, createContext } from "react";
+import { useState, useEffect, useCallback, useRef, useContext, createContext, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -1930,9 +1930,9 @@ const DIAGNOSIS_ENTRIES = [
   },
 ];
 
-// BgZ "Behandelaanwijzingen": a 2023 "with limitations" CPR record superseded
-// by the 2026 palliative-phase decisions, which match the PZP tab's "Treatment
-// wishes and boundaries" section word-for-word where they overlap.
+// BgZ "Behandelaanwijzingen": CPR only (other restriction types were removed
+// on request) — a 2023 "with limitations" record superseded by the 2026
+// palliative-phase "Not for resuscitation", matching the PZP tab word-for-word.
 const RESTRICTION_ENTRIES = [
   {
     id: "r1",
@@ -1958,45 +1958,6 @@ const RESTRICTION_ENTRIES = [
     tone: "danger",
     detail: [
       { label: "Limits", value: "Agreed with patient and GP as part of the palliative care plan" },
-      { label: "Verified By", value: "Patient and GP" },
-      { label: "Verification date", value: "12/08/2026" },
-    ],
-  },
-  {
-    id: "r3",
-    date: "12/08/2026",
-    source: "GP Practice de Linde, Amersfoort",
-    label: "Artificial ventilation | Not desired",
-    phase: "current",
-    tone: "danger",
-    detail: [
-      { label: "Limits", value: "No intubation or ICU admission" },
-      { label: "Verified By", value: "Patient and GP" },
-      { label: "Verification date", value: "12/08/2026" },
-    ],
-  },
-  {
-    id: "r4",
-    date: "12/08/2026",
-    source: "GP Practice de Linde, Amersfoort",
-    label: "Artificial nutrition and hydration | Declined",
-    phase: "current",
-    tone: "danger",
-    detail: [
-      { label: "Limits", value: "Comfort feeding only" },
-      { label: "Verified By", value: "Patient and GP" },
-      { label: "Verification date", value: "12/08/2026" },
-    ],
-  },
-  {
-    id: "r5",
-    date: "12/08/2026",
-    source: "GP Practice de Linde, Amersfoort",
-    label: "Antibiotics | Oral only",
-    phase: "current",
-    tone: "danger",
-    detail: [
-      { label: "Limits", value: "Oral antibiotics acceptable for comfort; IV antibiotics or hospital admission for infection declined" },
       { label: "Verified By", value: "Patient and GP" },
       { label: "Verification date", value: "12/08/2026" },
     ],
@@ -3026,6 +2987,30 @@ Object.assign(NL, {
   "Select the categories that you like to be visible on the dashboard. To re-order them, just drag & drop each category — also between columns.":
     "Selecteer de categorieën die u op het dashboard wilt zien. Sleep een categorie om de volgorde te wijzigen — ook tussen kolommen.",
   "1 column": "1 kolom",
+
+  // Dashboard timeline widget
+  "4 weeks": "4 weken",
+  "3 months": "3 maanden",
+  "1 year": "1 jaar",
+  "5 years": "5 jaar",
+  "Last 4 weeks": "Afgelopen 4 weken",
+  "Last 3 months": "Afgelopen 3 maanden",
+  "Last 12 months": "Afgelopen 12 maanden",
+  "Last 5 years": "Afgelopen 5 jaar",
+  "timeline:and": "en",
+  "next 2 weeks": "komende 2 weken",
+  "next 4 weeks": "komende 4 weken",
+  "next 2 months": "komende 2 maanden",
+  "next 3 months": "komende 3 maanden",
+  "Previous period": "Vorige periode",
+  "Next period": "Volgende periode",
+  "Some older records for this period aren't loaded yet.": "Sommige oudere gegevens voor deze periode zijn nog niet geladen.",
+  "Open all encounters": "Alle contactmomenten openen",
+  "Today": "Vandaag",
+  "No records in this period": "Geen gegevens in deze periode",
+  "encounter": "contactmoment",
+  "encounters": "contactmomenten",
+  "Older encounters not loaded yet — click to load more": "Oudere contactmomenten nog niet geladen — klik om meer te laden",
   "Select the categories that you like to be visible in the list. To re-order them, just drag & drop each category.":
     "Selecteer de categorieën die u in de lijst wilt zien. Sleep een categorie om de volgorde te wijzigen.",
   "2 columns": "2 kolommen",
@@ -3103,13 +3088,6 @@ Object.assign(NL, {
   "Right lower lobe pneumonia during an admission for acute breathlessness; treated with oral antibiotics.":
     "Pneumonie rechter onderkwab tijdens opname voor acute kortademigheid; behandeld met orale antibiotica.",
   "Lung, right lower lobe": "Long, rechter onderkwab",
-
-  // Treatment restrictions
-  "Artificial ventilation | Not desired": "Kunstmatige beademing | Niet gewenst",
-  "Artificial nutrition and hydration | Declined": "Kunstmatige voeding en vocht | Afgewezen",
-  "Antibiotics | Oral only": "Antibiotica | Alleen oraal",
-  "No intubation or ICU admission": "Geen intubatie of IC-opname",
-  "Comfort feeding only": "Alleen comfortvoeding",
   
   // Allergies
   "Medication | Penicillin": "Medicatie | Penicilline",
@@ -3721,7 +3699,635 @@ function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed
   );
 }
 
-function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange, layout, railLayout }) {
+/* ---------- PX360 Dashboard timeline widget ---------- */
+
+// Lightbox opened from an encounter dot on the timeline: only the loaded
+// encounters in that dot's period (one day, or the span of merged dots), newest first, expandable like
+// the Dashboard card rows. If that period is older than what's fully loaded,
+// it says so rather than implying the list is complete.
+function EncounterPeriodPreview({ period, encounters, incomplete, onClose, onOpenAll }) {
+  const { t, lang } = useLanguage();
+  const [expanded, setExpanded] = useState({});
+  const title = period.label;
+  const items = encounters
+    .filter((e) => {
+      const at = new Date(e.sortDate).getTime();
+      return at >= period.start && at < period.end;
+    })
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate));
+  return (
+    <Modal title={`${t("Encounters")} · ${title}`} onClose={onClose} width={640}>
+      <p className="text-[14px] mb-3" style={{ color: T.gray600 }}>
+        {lang === "nl"
+          ? `${items.length} ${items.length === 1 ? "contactmoment" : "contactmomenten"} in deze periode`
+          : `${items.length} ${items.length === 1 ? "encounter" : "encounters"} in this period`}
+      </p>
+      {incomplete && (
+        <div className="flex items-center gap-2 text-[13px] mb-3 px-3 py-2 rounded-md" style={{ backgroundColor: T.light, color: T.gray600 }}>
+          <AlertCircle size={15} style={{ color: T.warning, fill: T.warning, stroke: "#fff" }} />
+          {t("Some older records for this period aren't loaded yet.")}
+        </div>
+      )}
+      <div className="border rounded-[4px] px-4" style={{ borderColor: T.border }}>
+        {items.map((item, i) => (
+          <DashboardRow
+            key={item.id}
+            date={item.date}
+            source={<SourceLabel source={item.source} />}
+            label={t(item.label)}
+            tone={item.label.startsWith("Emergency") ? "danger" : undefined}
+            isExpanded={!!expanded[item.id]}
+            onToggle={() => setExpanded((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+            isLast={i === items.length - 1}
+          >
+            {(ENCOUNTER_DETAILS[item.id] || genericDetail(item, t)).map((d, k) => (
+              <OrgDetailBlock key={k} detail={d} isFirst={k === 0} />
+            ))}
+          </DashboardRow>
+        ))}
+      </div>
+      <div className="flex justify-end mt-4">
+        <button onClick={onOpenAll} className="flex items-center gap-1 text-[14px] font-semibold" style={{ color: T.primary }}>
+          {t("Open all encounters")} <ChevronRight size={15} />
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const TIMELINE_EXCLUDED = ["treatment", "allergies", "alerts"];
+// One BgZ record as a timeline mark. The record's own data decides the shape:
+// still-active records (phase "active") run as a bar from their date to today;
+// records with an "End date" field run as a bar to that date; everything else
+// is a dot at its date (hollow when it lies in the future, e.g. planned
+// procedures). Bars and hover cards carry a short title, as in the Figma
+// timeline: the part of the "Type | Detail" label that names the thing — the
+// detail for categories whose prefix is only a type word (a diagnosis's
+// "Diagnosis |", a provider's role), the prefix otherwise (drug, procedure,
+// lab test names).
+const TITLE_FROM_DETAIL = ["diagnoses", "providers", "contacts"];
+function recordToMark(item, today, catKey) {
+  const start = parseDMY(item.date);
+  const endField = item.detail?.find((d) => d.label === "End date")?.value;
+  const end = endField ? parseDMY(endField) : item.phase === "active" ? today : null;
+  const [prefix, rest] = item.label.split("|").map((x) => x.trim());
+  return {
+    id: item.id,
+    start,
+    end,
+    ongoing: item.phase === "active",
+    // Resolved/stopped records (and anything with an end date) draw in grey.
+    ended: ["resolved", "stopped", "previous"].includes(item.phase) || (endField != null && item.phase !== "active"),
+    planned: start > today,
+    label: item.label,
+    titlePart: TITLE_FROM_DETAIL.includes(catKey) && rest ? 1 : 0,
+    date: item.date,
+    endDate: endField || null,
+    source: item.source,
+    detail: item.detail || [],
+  };
+}
+
+// Greedy interval packing: each mark goes on the first row where it doesn't
+// overlap (bars get a minimum width so a short pill still fits its label),
+// so marks never hide each other.
+function packRows(marks, toPct) {
+  const rows = [];
+  return marks
+    .slice()
+    .sort((a, b) => a.start - b.start)
+    .map((m) => {
+      const from = toPct(m.start);
+      const to = m.end != null ? Math.max(toPct(m.end), from + 9) : from + 1.5;
+      let row = rows.findIndex((rightEdge) => rightEdge < from - 0.5);
+      if (row === -1) {
+        rows.push(to);
+        row = rows.length - 1;
+      } else rows[row] = to;
+      return { ...m, row };
+    });
+}
+
+// Rolling periods, the way clinicians think about time ("the last 3 months",
+// "what's coming up") rather than calendar periods: each ends at today plus a
+// look-ahead for planned care, so today always sits near the right edge.
+// `unit` is the column size on the axis. Which one opens first depends on the
+// signed-in role (TIMELINE_DEFAULT_RANGE).
+const TIMELINE_RANGES = [
+  { key: "4w", label: "4 weeks", title: "Last 4 weeks", ahead: "next 2 weeks", past: 28, future: 14, unit: "day" },
+  { key: "3m", label: "3 months", title: "Last 3 months", ahead: "next 4 weeks", past: 91, future: 28, unit: "week" },
+  { key: "1y", label: "1 year", title: "Last 12 months", ahead: "next 2 months", past: 365, future: 61, unit: "month" },
+  { key: "5y", label: "5 years", title: "Last 5 years", ahead: "next 3 months", past: 1826, future: 91, unit: "year" },
+];
+// Out-of-hours and home-care roles live in the near term; a GP consult looks
+// back over the last months; anyone else starts on the last year.
+const TIMELINE_DEFAULT_RANGE = { "Community Nurse": "4w", GP: "3m" };
+
+// "3 weeks ago" / "in 5 days", for the hover card.
+function relativeTime(ms, now, lang) {
+  const days = Math.round((ms - now) / DAY_MS);
+  const nl = lang === "nl";
+  if (days === 0) return nl ? "vandaag" : "today";
+  const n = Math.abs(days);
+  const [value, unitEn, unitNl] =
+    n < 14 ? [n, n === 1 ? "day" : "days", n === 1 ? "dag" : "dagen"]
+    : n < 63 ? [Math.round(n / 7), Math.round(n / 7) === 1 ? "week" : "weeks", Math.round(n / 7) === 1 ? "week" : "weken"]
+    : n < 730 ? [Math.round(n / 30.44), Math.round(n / 30.44) === 1 ? "month" : "months", Math.round(n / 30.44) === 1 ? "maand" : "maanden"]
+    : [Math.round(n / 365.25), "years", "jaar"];
+  if (days < 0) return nl ? `${value} ${unitNl} geleden` : `${value} ${unitEn} ago`;
+  return nl ? `over ${value} ${unitNl}` : `in ${value} ${unitEn}`;
+}
+
+// Encounter circles on the timeline: the user's Figma gradient — linear,
+// bottom-left → top-right, #0080A3 at 80% → 10% (red for a circle that holds
+// an emergency visit, same stops).
+function encounterDotGradient(emergency) {
+  const rgb = emergency ? "220,91,91" : "0,128,163";
+  return `linear-gradient(to top right, rgba(${rgb},0.8), rgba(${rgb},0.1))`;
+}
+
+// Segmented control in the Dashboard/Detailed switch's style (Figma
+// 13561-53714) — reused for the timeline's range buttons.
+function Segmented({ options, value, onChange }) {
+  const { t } = useLanguage();
+  return (
+    <div className="flex items-center gap-6 rounded-[4px] px-3 py-[3px]" style={{ backgroundColor: T.lightBg }}>
+      {options.map((o) => {
+        const active = o.key === value;
+        return (
+          <button
+            key={o.key}
+            onClick={() => onChange(o.key)}
+            className={`text-[14px] leading-[1.5] rounded-[3.2px] whitespace-nowrap ${active ? "font-semibold px-[9px] py-[5px] bg-white border" : "px-2 py-1"}`}
+            style={active ? { color: T.bodyText, borderColor: T.light, boxShadow: "0 2px 4px rgba(0,0,0,0.08)" } : { color: T.bodyText }}
+          >
+            {t(o.label)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Hover card for a record mark on the timeline (not encounters — those are
+// merged dots with their own preview): date and organisation, the record's
+// name, then its own fields — the same data its expanded card shows. It
+// follows the mouse pointer (a pill can be much wider than where you're
+// pointing), 14px below-right of it, flipping left/up near the window edges.
+// Portalled to <body> so no lane, transform or overflow can clip it.
+function RecordHoverCard({ mark, x, y }) {
+  const { t, lang } = useLanguage();
+  const title = t(mark.label).split("|")[mark.titlePart]?.trim();
+  const fields = mark.detail.filter((d) => d.label !== "Date");
+  const show = (d) => {
+    const v = t(d.value);
+    // Status values are stored upper-case for the badges; read as a word here.
+    return d.label === "Status" ? v.charAt(0) + v.slice(1).toLowerCase() : v;
+  };
+  const W = 300;
+  const estH = 80 + fields.length * 30;
+  const style = { width: W, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" };
+  if (x + 14 + W > window.innerWidth - 8) style.left = x - 14 - W; else style.left = x + 14;
+  if (y + 14 + estH > window.innerHeight - 8) style.bottom = window.innerHeight - y + 14; else style.top = y + 14;
+  return createPortal(
+    <div className="pointer-events-none fixed z-[60] rounded-[6px] bg-white p-4 text-left" style={{ ...style, fontFamily: T.fontFamily }}>
+      <div className="flex items-start justify-between gap-3 text-[14px] leading-[1.5]">
+        <span style={{ color: T.gray600 }}>{mark.date} · {relativeTime(mark.start, Date.now(), lang)}</span>
+        <span className="text-right" style={{ color: T.bodyText }}>{mark.source}</span>
+      </div>
+      <div className="text-[14px] font-semibold leading-[1.4]" style={{ color: T.primary }}>{title}</div>
+      {fields.length > 0 && (
+        <div className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-1 mt-3 text-[14px] leading-[1.5]">
+          {fields.map((d) => (
+            <Fragment key={d.label}>
+              <span className="font-semibold" style={{ color: T.gray600 }}>{t(d.label)}</span>
+              <span style={{ color: T.bodyText }}>{show(d)}</span>
+            </Fragment>
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body
+  );
+}
+
+// Dashboard timeline, after the Figma "Patient summary" timeline frame
+// (13595-373609; measured from its render, the Figma API wouldn't return the
+// node), with rolling periods instead of the frame's Weekly/Monthly/Yearly
+// (see TIMELINE_RANGES): period title, range buttons, previous/Today/next; one lane
+// per category shown on the Dashboard (the caller decides which — see
+// TIMELINE_EXCLUDED), drawn from the same BgZ records; and an overview strip
+// of the whole history with the visible window, which can be clicked or
+// dragged to jump. Active/ended records are labelled pills, point records and
+// encounters are dots — encounters that would overlap merge into one dot with
+// a count, and clicking one opens a preview of just those encounters. Periods
+// not fully loaded yet are hatched in the Encounters lane (click to load
+// older pages).
+function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpenRecord, onOpenCategory, onLoadOlder, onOpenEncounters, defaultRange = "1y" }) {
+  const { t, lang } = useLanguage();
+  // Stable for the component's life, so "is the window still at today?" is a
+  // plain comparison rather than racing the clock.
+  const [today] = useState(() => Date.now());
+  const startOfToday = new Date(new Date(today).getFullYear(), new Date(today).getMonth(), new Date(today).getDate()).getTime();
+  const [rangeKey, setRangeKey] = useState(defaultRange);
+  const range = TIMELINE_RANGES.find((r) => r.key === rangeKey);
+  const span = (range.past + range.future) * DAY_MS;
+  // Today's window for a range: the last `past` days (today included) plus
+  // the look-ahead.
+  const anchoredStart = (r) => startOfToday + DAY_MS - r.past * DAY_MS;
+  // Start of the visible window. The range buttons and Today put it at today;
+  // the arrows move it by one range length; dragging the overview strip moves
+  // it continuously.
+  const [winStart, setWinStart] = useState(() => anchoredStart(range));
+  const [dragging, setDragging] = useState(false);
+  const grabOffsetRef = useRef(0);
+  // Switching persona (role) re-opens on that role's default span.
+  useEffect(() => {
+    const r = TIMELINE_RANGES.find((x) => x.key === defaultRange);
+    setRangeKey(defaultRange);
+    setWinStart(anchoredStart(r));
+  }, [defaultRange]);
+  // The record mark under the pointer, and where the pointer is.
+  const [hover, setHover] = useState(null);
+  const hoverProps = (m) => ({
+    onMouseEnter: (e) => setHover({ mark: m, x: e.clientX, y: e.clientY }),
+    onMouseMove: (e) => setHover({ mark: m, x: e.clientX, y: e.clientY }),
+    onMouseLeave: () => setHover(null),
+  });
+  const rangeStart = winStart;
+  const rangeEnd = winStart + span;
+  const atToday = winStart === anchoredStart(range);
+  const centre = rangeStart + span / 2;
+  // The timeline never looks further than a year ahead: a window can end at
+  // most one year after today, and the overview strip stops there too.
+  const maxEnd = startOfToday + 365 * DAY_MS;
+  const clampStart = (ms, len = span) => Math.min(ms, maxEnd - len);
+  const goTo = (ms) => setWinStart(clampStart(ms));
+  const stepPeriod = (dir) => goTo(winStart + dir * range.past * DAY_MS);
+  const changeRange = (key) => {
+    const r = TIMELINE_RANGES.find((x) => x.key === key);
+    setRangeKey(key);
+    // At today → stay at today; browsing elsewhere → keep that moment centred.
+    const len = (r.past + r.future) * DAY_MS;
+    setWinStart(atToday ? anchoredStart(r) : clampStart(Math.round(centre - len / 2), len));
+  };
+  // Marks glide to their new place after an arrow/Today/range jump; while
+  // dragging they follow the pointer directly.
+  const glide = dragging ? "" : "transition-[left,width] duration-300 ease-out";
+  const toPct = (ms) => ((ms - rangeStart) / span) * 100;
+  // Same scale as toPct but anchored at 0, for row packing that doesn't depend
+  // on the window's position (see the lanes below).
+  const packScale = (ms) => (ms / span) * 100;
+  const inRange = (from, to) => to >= rangeStart && from < rangeEnd;
+  const locale = lang === "nl" ? "nl-NL" : "en-GB";
+  const fmtDay = (ms) => new Date(ms).toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
+  const fmtShort = (ms) =>
+    range.unit === "month" || range.unit === "year"
+      ? new Date(ms).toLocaleDateString(locale, { month: "short", year: "numeric" })
+      : new Date(ms).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+
+  // Relative title at today ("Last 3 months · and next 4 weeks"); a date range
+  // once you've moved away from today.
+  const title = atToday ? t(range.title) : `${fmtShort(rangeStart)} – ${fmtShort(rangeEnd - 1)}`;
+  const subtitle = atToday ? `${t("and", "timeline")} ${t(range.ahead)}` : null;
+
+  // Column headings in the range's unit (days, Monday-weeks, months, years).
+  // Edge columns can be partial; they're sized by their visible share and
+  // their label is hidden once too narrow to read.
+  const unitStart = (d) => {
+    if (range.unit === "day") return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (range.unit === "week") return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    if (range.unit === "month") return new Date(d.getFullYear(), d.getMonth(), 1);
+    return new Date(d.getFullYear(), 0, 1);
+  };
+  const unitNext = (d) => {
+    if (range.unit === "day") return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    if (range.unit === "week") return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+    if (range.unit === "month") return new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    return new Date(d.getFullYear() + 1, 0, 1);
+  };
+  const minShare = { day: 0.018, week: 0.035, month: 0.04, year: 0.06 }[range.unit];
+  const columns = [];
+  // In the day view a "1 Oct"-style label needs two day columns; the day after
+  // it gives up its number to make room.
+  let skipNext = false;
+  for (let cur = unitStart(new Date(rangeStart)), first = true; cur.getTime() < rangeEnd; cur = unitNext(cur)) {
+    const next = unitNext(cur);
+    const from = Math.max(cur.getTime(), rangeStart);
+    const to = Math.min(next.getTime(), rangeEnd);
+    if (to <= from) continue;
+    const share = (to - from) / span;
+    const showMonth = first || cur.getDate() === 1;
+    const wide = range.unit === "day" && showMonth && share >= minShare;
+    columns.push({
+      key: cur.getTime(),
+      start: cur.getTime(),
+      end: next.getTime(),
+      share,
+      hidden: share < minShare || skipNext,
+      wide,
+      label:
+        range.unit === "day"
+          ? showMonth ? cur.toLocaleDateString(locale, { day: "numeric", month: "short" }) : String(cur.getDate())
+          : range.unit === "week"
+            ? cur.toLocaleDateString(locale, { day: "numeric", month: "short" })
+            : range.unit === "month"
+              ? cur.toLocaleDateString(locale, cur.getMonth() === 0 || first ? { month: "short", year: "numeric" } : { month: "short" })
+              : String(cur.getFullYear()),
+    });
+    skipNext = wide;
+    if (share >= minShare) first = false;
+  }
+
+  // Encounters in view, merged into one dot where they'd overlap.
+  const encInView = encounters
+    .map((e) => ({ ...e, at: new Date(e.sortDate).getTime() }))
+    .filter((e) => e.at >= rangeStart && e.at < rangeEnd)
+    .sort((a, b) => a.at - b.at);
+  const clusters = [];
+  encInView.forEach((e) => {
+    const last = clusters[clusters.length - 1];
+    if (last && toPct(e.at) - toPct(last.last) < 1.2) {
+      last.items.push(e);
+      last.last = e.at;
+    } else clusters.push({ first: e.at, last: e.at, items: [e] });
+  });
+  const hatchTo = notLoadedBefore ? Math.min(100, toPct(new Date(notLoadedBefore).getTime())) : 0;
+  const todayPct = toPct(today);
+
+  // Overview strip: whole history, from the year of the earliest record up to
+  // one year ahead.
+  const recordMarks = lanes.flatMap((l) => l.marks);
+  const encounterTimes = encounters.map((e) => new Date(e.sortDate).getTime()).sort((a, b) => a - b);
+  const overviewStart = new Date(new Date(Math.min(today, ...recordMarks.map((m) => m.start), ...encounterTimes)).getFullYear(), 0, 1).getTime();
+  const overviewEnd = maxEnd;
+  const ovPct = (ms) => ((ms - overviewStart) / (overviewEnd - overviewStart)) * 100;
+  const overviewYears = [];
+  for (let y = new Date(overviewStart).getFullYear(); new Date(y, 0, 1).getTime() <= overviewEnd; y++) overviewYears.push(y);
+  // One row per timeline lane, in the same order as the lanes (Encounters,
+  // Diagnoses, Medication, Procedures): that category's records as thin bars
+  // on its row, overlapping ones simply drawn over each other. Encounters —
+  // hundreds of points — are merged into runs.
+  const encRuns = [];
+  encounterTimes.forEach((ms) => {
+    const at = ovPct(ms);
+    const last = encRuns[encRuns.length - 1];
+    if (last && at - last.to < 0.6) last.to = Math.max(last.to, at + 0.5);
+    else encRuns.push({ from: at, to: at + 0.5 });
+  });
+  const ovMarks = lanes.flatMap((lane, row) =>
+    lane.key === "encounters"
+      ? encRuns.map((r) => ({ key: `enc-${r.from}`, from: r.from, to: r.to, row, ended: false, faint: true }))
+      : lane.marks.map((m) => {
+          const from = ovPct(m.start);
+          return { key: m.id, from, to: Math.max(m.end != null ? ovPct(m.end) : from, from + 0.8), row, ended: m.ended };
+        })
+  );
+  const ovRowCount = lanes.length;
+  const OV_ROW = 7;
+  const ovHeight = Math.max(32, ovRowCount * OV_ROW + 14);
+  const ovTop = (row) => (ovHeight - ovRowCount * OV_ROW) / 2 + row * OV_ROW + 1.5;
+  const overviewRef = useRef(null);
+  const dateAt = (clientX) => {
+    const r = overviewRef.current.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    return overviewStart + frac * (overviewEnd - overviewStart);
+  };
+  // Grabbing inside the window keeps the grab point under the pointer;
+  // pressing outside it centres the window there first.
+  const startOverviewDrag = (clientX) => {
+    const at = dateAt(clientX);
+    grabOffsetRef.current = at >= rangeStart && at <= rangeEnd ? at - rangeStart : span / 2;
+    setDragging(true);
+    setWinStart(clampStart(Math.round(at - grabOffsetRef.current)));
+  };
+  const moveOverviewDrag = (clientX) => setWinStart(clampStart(Math.round(dateAt(clientX) - grabOffsetRef.current)));
+
+  const Tip = ({ children }) => (
+    <span className="pointer-events-none absolute z-20 left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover:block whitespace-nowrap rounded px-2 py-1 text-[12px] font-normal text-white shadow" style={{ backgroundColor: T.secondary }}>
+      {children}
+    </span>
+  );
+  const TodayLine = () =>
+    todayPct >= 0 && todayPct <= 100 ? <span className="absolute top-0 bottom-0 border-l border-dashed" style={{ left: `${todayPct}%`, borderColor: T.danger }} /> : null;
+  const laneLabel = (key, label, Icon) => (
+    <button onClick={() => onOpenCategory(key)} className="flex items-center gap-2 px-3 text-left text-[14px] border-r hover:underline" style={{ borderColor: T.border, color: T.bodyText }}>
+      <Icon size={18} className="shrink-0" style={{ color: T.primary }} /> {t(label)}
+    </button>
+  );
+  const navBtn = "h-[22px] rounded-[4px] bg-white border flex items-center justify-center text-[14px]";
+
+  return (
+    <div className="mb-6">
+      {hover && <RecordHoverCard mark={hover.mark} x={hover.x} y={hover.y} />}
+      {/* Period title · range · navigation */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center mb-6">
+        <div>
+          <h3 className="text-[22px] font-semibold leading-[1.2]" style={{ color: T.black }}>{title}</h3>
+          {subtitle && <div className="text-[13px] mt-1" style={{ color: T.gray600 }}>{subtitle}</div>}
+        </div>
+        <Segmented
+          options={TIMELINE_RANGES.map((r) => ({ key: r.key, label: r.label }))}
+          value={rangeKey}
+          onChange={changeRange}
+        />
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={() => stepPeriod(-1)} aria-label={t("Previous period")} className={`${navBtn} w-[30px]`} style={{ borderColor: T.border }}>
+            <ChevronLeft size={15} style={{ color: T.bodyText }} />
+          </button>
+          <button onClick={() => goTo(anchoredStart(range))} className={`${navBtn} w-[136px]`} style={{ borderColor: T.border, color: T.bodyText }}>{t("Today")}</button>
+          <button onClick={() => stepPeriod(1)} aria-label={t("Next period")} className={`${navBtn} w-[33px]`} style={{ borderColor: T.border }}>
+            <ChevronRight size={15} style={{ color: T.bodyText }} />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[160px_1fr]">
+        {/* Column headings */}
+        <div />
+        <div className="flex h-8 items-start">
+          {columns.map((c) => (
+            <span
+              key={c.key}
+              className={`min-w-0 whitespace-nowrap ${c.wide ? "text-left overflow-visible" : "text-center overflow-hidden"} ${range.unit === "day" ? "text-[12px]" : "text-[13px]"}`}
+              style={{
+                flex: `${c.share} 1 0`,
+                color: c.start <= today && today < c.end ? T.primary : T.bodyText,
+                fontWeight: c.start <= today && today < c.end ? 600 : 400,
+                visibility: c.hidden ? "hidden" : "visible",
+              }}
+            >
+              {c.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="border rounded-t-[4px] overflow-visible" style={{ borderColor: T.border }}>
+        {lanes.map((lane, li) => {
+          const isEnc = lane.key === "encounters";
+          // Rows are packed over the lane's whole history (at this range's
+          // scale, independent of where the window is), so a lane keeps the
+          // height of its busiest period and each record keeps its row while
+          // dragging from one year to the next — no vertical jumps.
+          const packedAll = isEnc ? [] : packRows(lane.marks, packScale);
+          const rows = Math.max(1, ...packedAll.map((m) => m.row + 1));
+          const packed = packedAll.filter((m) => inRange(m.start, m.end ?? m.start));
+          const visible = packed;
+          const height = Math.max(60, rows * 24 + 12);
+          return (
+            <div key={lane.key} className={`grid grid-cols-[160px_1fr] ${li > 0 ? "border-t" : ""}`} style={{ borderColor: T.border, height }}>
+              {laneLabel(lane.key, lane.label, lane.icon)}
+              <div className="relative">
+                {isEnc && hatchTo > 0 && (
+                  <button
+                    onClick={onLoadOlder}
+                    className="group absolute top-0 bottom-0 left-0"
+                    style={{ width: `${hatchTo}%`, backgroundImage: `repeating-linear-gradient(45deg, ${T.gray400} 0 1px, transparent 1px 7px)`, opacity: 0.6 }}
+                  >
+                    <Tip>{t("Older encounters not loaded yet — click to load more")}</Tip>
+                  </button>
+                )}
+                {isEnc && loading && (
+                  <span className="absolute inset-0 flex items-center gap-2 pl-3 text-[12px]" style={{ color: T.gray500 }}>
+                    <LoaderCircle size={14} className="animate-spin" style={{ color: T.primary }} /> {t("Loading first results…")}
+                  </span>
+                )}
+                {isEnc &&
+                  clusters.map((c) => {
+                    const n = c.items.length;
+                    const emergency = c.items.some((e) => e.label.startsWith("Emergency"));
+                    const mid = (c.first + c.last) / 2;
+                    const label = c.first === c.last ? c.items[0].date : `${fmtDay(c.first)} – ${fmtDay(c.last)}`;
+                    return (
+                      <button
+                        key={c.first}
+                        onClick={() => onOpenEncounters({ start: c.first, end: c.last + 1, label })}
+                        className={`group absolute top-1/2 -translate-x-1/2 -translate-y-1/2 ${glide}`}
+                        style={{ left: `${toPct(mid)}%` }}
+                      >
+                        {n === 1 ? (
+                          <span className="block w-[10px] h-[10px] rounded-full" style={{ backgroundImage: encounterDotGradient(emergency) }} />
+                        ) : (
+                          // Size steps with how many encounters the dot holds, so
+                          // busy periods stand out at a glance: 2–5, 6–10, 11+.
+                          <span
+                            className="flex items-center justify-center rounded-full font-semibold"
+                            style={{
+                              ...(n <= 5 ? { width: 20, height: 20, fontSize: 11 } : n <= 10 ? { width: 26, height: 26, fontSize: 12 } : { width: 34, height: 34, fontSize: 13 }),
+                              backgroundImage: encounterDotGradient(emergency),
+                              // The fill fades to 10% at the top-right, so white text
+                              // would get lost; the dark brand blue stays readable.
+                              color: emergency ? "#7A1F1F" : T.secondary,
+                            }}
+                          >
+                            {n}
+                          </span>
+                        )}
+                        <Tip>
+                          {n === 1 ? `${c.items[0].date} · ${t(c.items[0].label)}` : `${label} · ${n} ${t("encounters")}`}
+                        </Tip>
+                      </button>
+                    );
+                  })}
+                {!isEnc && visible.length === 0 && (
+                  <span className="absolute inset-0 flex items-center pl-3 text-[12px]" style={{ color: T.gray500 }}>{t("No records in this period")}</span>
+                )}
+                {packed.map((m) => {
+                  // The block of rows sits vertically centred in the lane.
+                  const top = (height - (rows * 24 - 2)) / 2 + m.row * 24;
+
+                  if (m.end != null) {
+                    const left = Math.max(0, toPct(m.start));
+                    const right = Math.min(100, toPct(m.end));
+                    const clippedL = toPct(m.start) < 0;
+                    const clippedR = toPct(m.end) > 100;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => onOpenRecord(lane.key, m.id)}
+                        {...hoverProps(m)}
+                        className={`absolute ${glide}`}
+                        style={{ left: `${left}%`, width: `${Math.max(right - left, 0.1)}%`, minWidth: 28, top, height: 22 }}
+                      >
+                        {/* Bar style from the user's reference: a solid accent at the
+                            start (left out when the record began before the visible
+                            period), a fill that fades toward a rounded end (square when
+                            it runs on past the period). Grey when the record has ended. */}
+                        <span
+                          className={`flex items-center h-full px-3 text-[13px] font-semibold overflow-hidden ${clippedR ? "rounded-r-none" : "rounded-r-full"}`}
+                          style={{
+                            backgroundImage: m.ended
+                              ? "linear-gradient(to right, rgba(108,117,125,0.30), rgba(108,117,125,0.08))"
+                              : "linear-gradient(to right, rgba(0,128,163,0.32), rgba(0,128,163,0.08))",
+                            borderLeft: clippedL ? "none" : `3px solid ${m.ended ? T.gray500 : T.primary}`,
+                            color: m.ended ? T.gray600 : T.primary,
+                          }}
+                        >
+                          <span className="truncate">{t(m.label).split("|")[m.titlePart]?.trim()}</span>
+                        </span>
+                      </button>
+                    );
+                  }
+                  return (
+                    <button key={m.id} onClick={() => onOpenRecord(lane.key, m.id)} {...hoverProps(m)} className={`absolute -translate-x-1/2 ${glide}`} style={{ left: `${toPct(m.start)}%`, top: top + 6 }}>
+                      <span
+                        className="block w-[10px] h-[10px] rounded-full"
+                        style={m.planned ? { border: `2px solid ${T.primary}`, backgroundColor: "#fff" } : { backgroundColor: m.ended ? T.gray500 : T.primary }}
+                      />
+                    </button>
+                  );
+                })}
+                <TodayLine />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Overview strip: whole history, visible window highlighted */}
+      <div
+        ref={overviewRef}
+        className="relative border border-t-0 rounded-b-[4px] cursor-pointer select-none touch-none"
+        style={{ backgroundColor: T.lightBg, borderColor: T.border, height: ovHeight }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          startOverviewDrag(e.clientX);
+        }}
+        onPointerMove={(e) => {
+          if (dragging) moveOverviewDrag(e.clientX);
+        }}
+        onPointerUp={() => setDragging(false)}
+        onPointerCancel={() => setDragging(false)}
+      >
+        {ovMarks.map((m) => (
+          <span
+            key={m.key}
+            className="absolute h-[4px] rounded-full"
+            style={{ left: `${m.from}%`, width: `${m.to - m.from}%`, top: ovTop(m.row), backgroundColor: m.ended ? T.gray500 : T.primary, opacity: m.faint ? 0.5 : 0.8 }}
+          />
+        ))}
+        <span
+          className={`absolute -top-[10px] -bottom-[10px] rounded-[4px] border pointer-events-none ${dragging ? "" : "transition-[left,width] duration-300 ease-out"}`}
+          style={{
+            left: `${ovPct(rangeStart)}%`,
+            width: `${Math.max(0.8, ovPct(rangeEnd) - ovPct(rangeStart))}%`,
+            backgroundColor: "rgba(0,128,163,0.25)",
+            borderColor: T.primary,
+          }}
+        />
+      </div>
+      <div className="relative h-6 mt-2 text-[13px]" style={{ color: T.bodyText }}>
+        {overviewYears.map((y) => (
+          <span key={y} className="absolute -translate-x-1/2" style={{ left: `${ovPct(new Date(y, 0, 1).getTime())}%` }}>{y}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange, layout, railLayout, timelineDefaultRange }) {
   const { t } = useLanguage();
   const [runId, setRunId] = useState(0);
   const [sourceStatus, setSourceStatus] = useState({});
@@ -4059,6 +4665,35 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
     if (scrollRef?.current) scrollRef.current.scrollTop = 0;
   };
 
+  // Timeline widget: the categories currently on the Dashboard, drawn from
+  // their own records, filtered by the page's organisation dropdown. Left out:
+  // Treatment restrictions (its current decision is the banner), and — on
+  // request — Allergies and Alerts, which are standing facts rather than events
+  // along the course of illness.
+  const timelineToday = Date.now();
+  const dashboardKeys = new Set(layout.columns.flat().filter((item) => item.visible).map((item) => item.key));
+  const timelineLanes = PX360_CATEGORIES
+    .filter((c) => dashboardKeys.has(c.key) && !TIMELINE_EXCLUDED.includes(c.key))
+    .map((c) => ({
+      key: c.key,
+      label: c.label,
+      icon: c.icon,
+      marks: c.entries ? c.entries.filter((item) => orgNameAllowed(item.source)).map((item) => recordToMark(item, timelineToday, c.key)) : [],
+    }));
+  const timelineEncounters = visibleItems.filter((item) => !sourceFilter || sourceFilter.has(sourceIdForItem(item)));
+  // { start, end, label } of the encounter dot whose preview is open.
+  const [encounterPreview, setEncounterPreview] = useState(null);
+  // Clicking a mark opens it in Detailed information, on the right status pill
+  // and already expanded.
+  const openRecord = (catKey, id) => {
+    const cat = PX360_CATEGORIES.find((c) => c.key === catKey);
+    const item = cat.entries?.find((e) => e.id === id);
+    if (catKey === "encounters") setPhaseOf("encounters", "past");
+    else setPhaseOf(catKey, cat.phases && item?.phase ? item.phase : "all");
+    setExpandedIds((prev) => ({ ...prev, [id]: true }));
+    openInDetailed(catKey);
+  };
+
   const renderDashboardCard = (cat) => {
     const common = {
       category: cat,
@@ -4137,6 +4772,29 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
 
     {view === "dashboard" && (
       <div>
+        <DashboardTimeline
+          lanes={timelineLanes}
+          encounters={timelineEncounters}
+          notLoadedBefore={typeof coverage.boundary === "string" ? coverage.boundary : null}
+          loading={visibleItems.length === 0}
+          onOpenRecord={openRecord}
+          onOpenCategory={openInDetailed}
+          onLoadOlder={() => fetchMoreFromSources({ onlyIds: selectedSources.map((src) => src.id) })}
+          onOpenEncounters={setEncounterPreview}
+          defaultRange={timelineDefaultRange}
+        />
+        {encounterPreview && (
+          <EncounterPeriodPreview
+            period={encounterPreview}
+            encounters={timelineEncounters}
+            incomplete={typeof coverage.boundary === "string" && new Date(coverage.boundary).getTime() > encounterPreview.start}
+            onClose={() => setEncounterPreview(null)}
+            onOpenAll={() => {
+              setEncounterPreview(null);
+              openInDetailed("encounters");
+            }}
+          />
+        )}
         <div className="flex items-start gap-4">
           {dashboardColumns.map((cats, col) => (
             <div key={col} className="flex-1 min-w-0 flex flex-col gap-4">
@@ -4875,7 +5533,7 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
               <OrgFilterDropdown selected={sourceFilter} onChange={setSourceFilter} />
               <TimeFilterDropdown value={timeFilter} onChange={setTimeFilter} />
             </div>
-            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} layout={dashboardLayout} railLayout={railLayout} />
+            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} layout={dashboardLayout} railLayout={railLayout} timelineDefaultRange={TIMELINE_DEFAULT_RANGE[persona?.role] ?? "1y"} />
           </div>
         </div>
       </div>

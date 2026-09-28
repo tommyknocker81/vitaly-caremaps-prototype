@@ -1060,3 +1060,33 @@ sending date/organisation/type filters to the source APIs, is out of scope for a
 noted to the user.
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
 
+**2026-09-28 — Dashboard timeline built from the BgZ categories, not as a separate feature**
+Why: after reviewing a sketch (swimlanes with milestones, trend lines and a restriction lane),
+the user asked for a simple Dashboard widget in the current design system, based on the BgZ
+information, without restrictions (already the banner) or milestones. The lanes are therefore
+whatever categories the Dashboard shows, each drawn from its own records, with the shape decided
+by the record's own status and dates. That means there's no extra data to author, and Customize
+view controls it for free. Encounters are drawn as density bars (there are hundreds), and the
+"not loaded yet" area uses the same coverage boundary as "Search older records", so the timeline
+never shows an unloaded period as empty.
+Ruled out: separate timeline data or milestones (user asked for BgZ-based); a restriction lane
+(duplicates the banner); a range brush that filters the cards, and trend lines (the user asked to
+keep it simple, and they can come later).
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
+
+**2026-09-28 — Timeline uses rolling periods ending at today, with a default span per role**
+Why: in a UX review, calendar Weekly/Monthly/Yearly (the Figma frame's model) was flagged as a poor
+fit for clinicians. They ask "what happened in the last 3 months?" and "what's coming?", not "what
+happened in calendar year 2026?". Calendar years cut at 1 January for no clinical reason (in
+September "2026" is three-quarters history and one-quarter empty future; in early January it's
+nearly empty). Palliative care is about the recent past and near future. The user asked for the
+rolling version. Ranges are 4 weeks, 3 months, 1 year and 5 years, each ending at today plus a
+look-ahead for planned care. The title is relative at today ("Last 3 months and next 4 weeks"), and
+the overview strip still allows browsing anywhere. The default span depends on the role (nurse 4
+weeks, GP 3 months, others 1 year), following the persona analysis in the same review.
+Ruled out: keeping calendar periods alongside (the user chose the rolling model); a non-linear
+compressed time axis (it distorts durations, e.g. a 5-year COPD bar would look short); starting
+from clinical events ("since diagnosis", "around this admission"), which was offered as a later
+addition.
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
+
