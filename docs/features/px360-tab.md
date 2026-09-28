@@ -380,6 +380,22 @@ modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
     contact persons (whose prefix is only a type word), and the prefix for everything else, such
     as drug, procedure and lab test names (`TITLE_FROM_DETAIL`).
 
+- **Procedure group icons on the timeline** (2026-09-28, timeline only, Procedures lane only). Each
+  procedure record has a `kind`, and `PROCEDURE_KINDS` maps it to a mini lucide icon (white, 13px, in a 22px solid primary circle):
+  Operation (Scissors), Diagnostic procedure (Microscope), Puncture / drainage (Droplets),
+  Radiotherapy (Radiation), Implant / device (Cable). A procedure without a known kind stays a plain
+  dot ("Other"). Planned procedures draw the circle at 50% opacity, and the hover card gets a "Type" row. The
+  set is deliberately small and fixed: the user asked for no more than ~10 icons. Real procedures
+  come from thousands of SNOMED CT / DHD codes, so a data integration would map each code to one of
+  these groups rather than adding icons. Icons that would overlap at wide zoom stack into rows via
+  the normal lane packing.
+
+- **Resolved diagnoses have a resolution date** (2026-09-28, on request). The two resolved
+  complaint/diagnosis records got an "End date" detail field: pneumonia 16/08 to 20/09/2025, and
+  the knee pain complaint 10/07 to 31/10/2025. The timeline therefore draws them as short grey
+  bars, where they used to be unexplained grey dots (a record without an end date can only be a
+  point). The end date also shows in their expanded card and hover card.
+
 ## Open questions
 
 - BgZ has no direct home for four items from the user-research lists ("Correspondence",

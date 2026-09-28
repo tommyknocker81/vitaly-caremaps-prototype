@@ -1090,3 +1090,14 @@ from clinical events ("since diagnosis", "around this admission"), which was off
 addition.
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
 
+**2026-09-28 — Procedure groups as mini icons on the timeline, capped at a small fixed set**
+Why: the user asked whether procedure types could be shown as minimalist blue icons instead of
+identical dots, as long as there wouldn't be more than ~10. Procedures are coded from thousands of
+SNOMED CT / DHD codes, so icons are per *group*, not per code: 5 groups (operation, diagnostic
+procedure, puncture/drainage, radiotherapy, implant/device) plus a plain-dot "Other" fallback. The
+icon count is a design choice, independent of the data. The user asked for the icons on the timeline
+only and on procedures only.
+Ruled out: icons per procedure code (unbounded); icons on the Diagnoses/Medication lanes (mostly
+bars, so icons would add noise); reusing them on cards and in Detailed information (not requested).
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
+

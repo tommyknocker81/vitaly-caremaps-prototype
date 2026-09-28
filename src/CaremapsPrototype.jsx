@@ -11,6 +11,7 @@ import {
   HelpCircle, MessageSquare, ShieldAlert, ClipboardCheck, FileSignature, FlaskConical,
   ShieldCheck, FileX, LayoutList, LoaderCircle, Pill, ClipboardPlus, BriefcaseMedical, Flag,
   Accessibility, HeartPulse, House, Users, Armchair, Syringe, IdCard, Wallet, Settings, Grip,
+  Scissors, Microscope, Droplets, Radiation, Cable,
 } from "lucide-react";
 import vitalyLogo from "./assets/vitaly-logo.png";
 
@@ -1911,6 +1912,7 @@ const DIAGNOSIS_ENTRIES = [
       { label: "Verification status", value: "Confirmed" },
       { label: "Status", value: "RESOLVED" },
       { label: "Date", value: "16/08/2025" },
+      { label: "End date", value: "20/09/2025" },
     ],
   },
   {
@@ -1926,6 +1928,7 @@ const DIAGNOSIS_ENTRIES = [
       { label: "Verification status", value: "Confirmed" },
       { label: "Status", value: "RESOLVED" },
       { label: "Date", value: "10/07/2025" },
+      { label: "End date", value: "31/10/2025" },
     ],
   },
 ];
@@ -2111,6 +2114,7 @@ const MEDICATION_ENTRIES = [
 const PROCEDURE_ENTRIES = [
   {
     id: "proc1",
+    kind: "implant",
     date: "02/10/2026",
     source: "Maastricht UMC+",
     label: "Indwelling pleural catheter placement | Right",
@@ -2124,6 +2128,7 @@ const PROCEDURE_ENTRIES = [
   },
   {
     id: "proc2",
+    kind: "radiotherapy",
     date: "03/09/2026",
     source: "Erasmus MC",
     label: "Palliative radiotherapy | Bone metastasis, left hip",
@@ -2137,6 +2142,7 @@ const PROCEDURE_ENTRIES = [
   },
   {
     id: "proc3",
+    kind: "puncture",
     date: "18/08/2025",
     source: "Maastricht UMC+",
     label: "Pleural puncture | Right",
@@ -2150,6 +2156,7 @@ const PROCEDURE_ENTRIES = [
   },
   {
     id: "proc4",
+    kind: "diagnostic",
     date: "20/02/2024",
     source: "Erasmus MC",
     label: "Bronchoscopy with biopsy | Right upper lobe",
@@ -2163,6 +2170,7 @@ const PROCEDURE_ENTRIES = [
   },
   {
     id: "proc5",
+    kind: "operation",
     date: "14/07/2023",
     source: "Erasmus MC",
     label: "Knee arthroscopy | Right",
@@ -3004,6 +3012,11 @@ Object.assign(NL, {
   "next 3 months": "komende 3 maanden",
   "Previous period": "Vorige periode",
   "Next period": "Volgende periode",
+  "Operation": "Operatie",
+  "Diagnostic procedure": "Diagnostische verrichting",
+  "Puncture / drainage": "Punctie / drainage",
+  "Radiotherapy": "Radiotherapie",
+  "Implant / device": "Implantaat / hulpmiddel",
   "Some older records for this period aren't loaded yet.": "Sommige oudere gegevens voor deze periode zijn nog niet geladen.",
   "Open all encounters": "Alle contactmomenten openen",
   "Today": "Vandaag",
@@ -3757,6 +3770,19 @@ function EncounterPeriodPreview({ period, encounters, incomplete, onClose, onOpe
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TIMELINE_EXCLUDED = ["treatment", "allergies", "alerts"];
+
+// Procedure groups drawn as mini icons on the timeline's Procedures lane
+// (timeline only). Deliberately a small, fixed set: real procedures are coded
+// from thousands of SNOMED CT / DHD codes, and a data integration would map
+// each code to one of these groups; anything unmapped stays a plain dot
+// ("Other"). Keep this well under ~7 groups so the icons stay learnable.
+const PROCEDURE_KINDS = {
+  operation: { icon: Scissors, label: "Operation" },
+  diagnostic: { icon: Microscope, label: "Diagnostic procedure" },
+  puncture: { icon: Droplets, label: "Puncture / drainage" },
+  radiotherapy: { icon: Radiation, label: "Radiotherapy" },
+  implant: { icon: Cable, label: "Implant / device" },
+};
 // One BgZ record as a timeline mark. The record's own data decides the shape:
 // still-active records (phase "active") run as a bar from their date to today;
 // records with an "End date" field run as a bar to that date; everything else
@@ -3786,6 +3812,7 @@ function recordToMark(item, today, catKey) {
     endDate: endField || null,
     source: item.source,
     detail: item.detail || [],
+    kind: item.kind || null,
   };
 }
 
@@ -3879,7 +3906,10 @@ function Segmented({ options, value, onChange }) {
 function RecordHoverCard({ mark, x, y }) {
   const { t, lang } = useLanguage();
   const title = t(mark.label).split("|")[mark.titlePart]?.trim();
-  const fields = mark.detail.filter((d) => d.label !== "Date");
+  const fields = [
+    ...(PROCEDURE_KINDS[mark.kind] ? [{ label: "Type", value: PROCEDURE_KINDS[mark.kind].label }] : []),
+    ...mark.detail.filter((d) => d.label !== "Date"),
+  ];
   const show = (d) => {
     const v = t(d.value);
     // Status values are stored upper-case for the badges; read as a word here.
@@ -4266,6 +4296,28 @@ function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpen
                           }}
                         >
                           <span className="truncate">{t(m.label).split("|")[m.titlePart]?.trim()}</span>
+                        </span>
+                      </button>
+                    );
+                  }
+                  const Kind = lane.key === "procedures" ? PROCEDURE_KINDS[m.kind]?.icon : null;
+                  if (Kind) {
+                    // White mini icon for the procedure's group in a solid blue
+                    // circle; planned ones at half strength.
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => onOpenRecord(lane.key, m.id)}
+                        {...hoverProps(m)}
+                        aria-label={t(PROCEDURE_KINDS[m.kind].label)}
+                        className={`absolute -translate-x-1/2 ${glide}`}
+                        style={{ left: `${toPct(m.start)}%`, top: top }}
+                      >
+                        <span
+                          className="flex items-center justify-center w-[22px] h-[22px] rounded-full"
+                          style={{ backgroundColor: T.primary, opacity: m.planned ? 0.5 : 1 }}
+                        >
+                          <Kind size={13} strokeWidth={2.25} color="#fff" />
                         </span>
                       </button>
                     );
