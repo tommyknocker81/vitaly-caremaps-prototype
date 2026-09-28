@@ -27,10 +27,12 @@ PX360 opens on a **Dashboard** sub-tab (Figma 13561-53679). A "Dashboard | Detai
 switch sits next to the "Patient 360" title. Detailed information is the left-rail view described
 above. The Dashboard shows:
 - a pinned red **treatment restriction** banner with the patient's current CPR decision ("Not for
-  resuscitation"), which opens Treatment restrictions in the Detailed view when clicked;
+  resuscitation"), which opens Treatment restrictions in the Detailed view when clicked. Since
+  2026-09-28 it's also pinned above the Detailed view, so it shows in both views;
 - a 2-column grid of category cards (by default the same six as the Figma frame: Encounters,
   Complaints and diagnoses, Allergies, Medication, Procedures, Alerts). Each card shows the 3 most
-  recent records, working status pills, a Filter link, and "Show all (N)" when there are more. Records expand in place.
+  recent records, working status pills, and "Show all (N)" when there are more (the Figma card's
+  "Filter" link was removed on request; filtering lives in the Detailed view). Records expand in place.
   The card header collapses the card.
 
 **Customize view** (Dashboard only, next to the sub-tab switch) opens an "Edit dashboard" modal
@@ -246,8 +248,8 @@ modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
     `permitted` flag (only the CPR records have one), and shows a green check if permitted or a
     red X if not.
   - The card limit is `DASHBOARD_CARD_LIMIT = 3`, agreed with the user instead of scrolling
-    inside cards. "Show all" and "Filter" call `openInDetailed(catKey)`, which switches the view,
-    selects the category and scrolls to the top ("Filter" also opens the drawer).
+    inside cards. "Show all" and the banner call `openInDetailed(catKey)`, which switches the view,
+    selects the category and scrolls to the top.
   - The layout is root state (`px360Layout`), saved with the rest of the demo state
     (`saveDemoState`), and reset to `defaultDashboardLayout()` by `resetDemo`. Shape:
     `{ columns: [[{ key, visible }], …] }`, one array per column. Every category is always in
@@ -271,6 +273,37 @@ modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
   - Icons are lucide equivalents rather than the Figma file's own SVGs, the same as the rest of this
     app. The Figma "NEW" tags on some card titles were left out, since they read as design-review
     markers, not product UI.
+
+- **Filter coverage: "Search older records"** (added 2026-09-28). Encounter filters run in the
+  browser over what's loaded, so "0 results" used to be ambiguous (nothing exists vs. not loaded yet).
+  - The mock history is now ~315 encounters over ~6 years (`GENERATED_ENCOUNTERS` plus
+    `EXTRA_EMERGENCIES`, generated from a fixed seed and sorted newest first per source). Pulmonary
+    rehabilitation (2021–22) only exists in older pages, so filtering on "Therapy session" demonstrates the
+    "not loaded yet" case.
+  - `coverage` works out, per selected organisation, how far back it's loaded (sources page newest
+    first). The limiting "searched back to" date is the most recent of those across incomplete
+    sources. A result is final (`coverageComplete`) when every selected source is fully loaded, or
+    the "All time" dropdown's window starts on or after that date.
+  - With any filter active, the Encounters list replaces "Show more" with `FilterCoverageFooter`:
+    "N found · searched back to DD/MM/YYYY · M older records not searched yet [Search older records]",
+    or "All records in this period searched" / "Full record searched" when final. The empty state
+    says "in the loaded records" unless the result is final.
+  - "Search older records" pages the selected sources quickly and repeatedly until 10 more matches
+    turn up, the period is covered, or 5 rounds have run. It then pauses with "Keep searching".
+    There's also a Stop button and a progress bar.
+  - The Sources header shows "Updated:" instead of "Complete as of" while older pages remain on
+    the server.
+  - Not yet applied to the Dashboard's Encounters card.
+
+- **Customize view for Detailed information** (added 2026-09-28, Figma 13589-372002). The "Customize
+  view" button now shows in both views and edits whichever one is open. In Detailed information,
+  the same `CustomizeDashboardModal` runs in `railMode`: title "Customize view", one list, no
+  layout picker. It has drag-to-reorder and on/off switches for the left-rail categories. The rail
+  layout is its own root state (`px360RailLayout`, `{ columns: [[{ key, visible }]] }` with one
+  column), saved with the demo state and reset by Reset demo (`defaultRailLayout`: all 17 shown, in
+  `PX360_CATEGORIES` order). The last visible category's switch is disabled, so the rail can't end
+  up empty. If the open category is hidden, the view falls back to the first visible one. The
+  Dashboard and the rail are customised independently.
 
 ## Open questions
 

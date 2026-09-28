@@ -1457,6 +1457,86 @@ const SOURCE_CONFIG = [
   },
 ];
 
+// A realistic encounter volume. A 73-year-old with lung cancer, COPD and
+// diabetes has a few hundred encounters across organisations over ~6 years,
+// not 21, and the "filters only see what's loaded" problem is only visible
+// at that scale. Generated from a fixed seed so every load (and every
+// reviewer) sees the same history. Visits get denser toward the present,
+// as they do in a real palliative trajectory. The hand-authored entries
+// above stay as they are (ENCOUNTER_DETAILS refers to them).
+const GENERATED_ENCOUNTERS = {
+  // [label, count, from, to]
+  "gp-linde": [
+    ["Outpatient visit | GP consultation", 46, "2020-10-01", "2026-09-20"],
+    ["Outpatient visit | Diabetes check-up", 18, "2020-10-01", "2026-09-10"],
+    ["Outpatient visit | COPD check-up", 14, "2020-10-01", "2026-06-30"],
+    ["Teleconsult | Telephone consultation", 22, "2020-10-01", "2026-09-22"],
+    ["Outpatient visit | Home visit", 12, "2026-06-01", "2026-09-22"],
+  ],
+  maastricht: [
+    ["Outpatient visit | Pulmonology follow-up", 30, "2020-10-01", "2026-09-15"],
+    ["Imaging | Chest X-ray", 12, "2020-10-01", "2026-08-30"],
+    ["Outpatient visit | Lung function test", 10, "2020-10-01", "2026-05-30"],
+    ["Teleconsult | Follow-up call", 16, "2020-10-01", "2026-09-18"],
+    // Only in the older history — filtering on it shows the "not loaded yet"
+    // case: nothing in the first pages, found by "Search older records".
+    ["Therapy session | Pulmonary rehabilitation", 12, "2021-09-01", "2022-03-31"],
+  ],
+  umcu: [
+    ["Outpatient visit | Internal medicine follow-up", 20, "2020-10-01", "2026-09-01"],
+    ["Teleconsult | Diabetes nurse call", 14, "2020-10-01", "2026-08-30"],
+    ["Therapy session | Physiotherapy", 10, "2025-06-01", "2025-10-31"],
+  ],
+  erasmus: [
+    ["Outpatient visit | Oncology consultation", 18, "2024-02-01", "2026-09-20"],
+    ["Day treatment | Chemotherapy session", 8, "2024-04-01", "2024-07-15"],
+    ["Imaging | PET-CT", 6, "2024-02-01", "2026-08-15"],
+    ["Day treatment | Radiotherapy session", 10, "2026-08-25", "2026-09-10"],
+    ["Teleconsult | Oncology nurse call", 12, "2024-03-01", "2026-09-22"],
+  ],
+};
+
+// Emergency visits are few and specific, so they're listed, not generated.
+const EXTRA_EMERGENCIES = {
+  maastricht: [
+    ["2021-02-11", "Emergency | COPD exacerbation"],
+    ["2022-01-24", "Emergency | COPD exacerbation"],
+    ["2023-11-30", "Emergency | Chest pain"],
+  ],
+  umcu: [["2021-07-04", "Emergency | Hypoglycaemia"]],
+};
+
+(function addGeneratedEncounters() {
+  // mulberry32 — tiny deterministic PRNG.
+  let seed = 360;
+  const rand = () => {
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const toDMY = (iso) => iso.split("-").reverse().join("/");
+  SOURCE_CONFIG.forEach((source) => {
+    const plan = GENERATED_ENCOUNTERS[source.id];
+    if (!plan) return;
+    let n = 0;
+    const add = (iso, label) =>
+      source.entries.push({ id: `g-${source.id}-${++n}`, date: toDMY(iso), sortDate: iso, label, source: source.name });
+    plan.forEach(([label, count, from, to]) => {
+      const a = new Date(from).getTime();
+      const b = new Date(to).getTime();
+      for (let i = 0; i < count; i++) {
+        // u^1.6 skews toward 0 → dates cluster near `to` (the present).
+        const at = b - (b - a) * Math.pow(rand(), 1.6);
+        add(new Date(at).toISOString().slice(0, 10), label);
+      }
+    });
+    (EXTRA_EMERGENCIES[source.id] || []).forEach(([iso, label]) => add(iso, label));
+    // Newest first: pagination slices each source's list from the top.
+    source.entries.sort((x, y) => y.sortDate.localeCompare(x.sortDate));
+  });
+})();
+
 // Mock clinical detail data shown when an encounter card is expanded.
 // Multi-source merges (e.g. "Maastricht UMC+ (+1)") get one detail block per
 // contributing organization; conflicting values get a hover comparison.
@@ -1566,6 +1646,15 @@ const TIME_OPTIONS = [
   { key: "year", label: "Last year" },
   { key: "5years", label: "Last 5 years" },
 ];
+
+// Start of the "All time" dropdown's window as "YYYY-MM-DD" (null = all time).
+function timeWindowStart(timeFilter) {
+  if (timeFilter === "all") return null;
+  const days = { month: 31, "6months": 186, year: 366, "5years": 366 * 5 }[timeFilter];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return cutoff.toISOString().slice(0, 10);
+}
 
 function withinTimeWindow(item, timeFilter) {
   if (timeFilter === "all") return true;
@@ -2708,6 +2797,21 @@ function changeColumnCount(layout, n) {
   return { columns: dealIntoColumns([...flat.filter((i) => i.visible), ...flat.filter((i) => !i.visible)], n) };
 }
 
+// Detailed information's left rail: one list, every category shown, in
+// PX360_CATEGORIES order — same { columns: [[{ key, visible }]] } shape as the
+// Dashboard layout (one column), so the same modal edits both.
+function defaultRailLayout() {
+  return { columns: [PX360_CATEGORIES.map((c) => ({ key: c.key, visible: true }))] };
+}
+
+function normalizeRailLayout(saved) {
+  if (saved?.columns?.length !== 1) return defaultRailLayout();
+  const layout = normalizeDashboardLayout(saved);
+  // Never end up with an empty rail.
+  if (!layout.columns[0].some((item) => item.visible)) layout.columns[0][0].visible = true;
+  return layout;
+}
+
 // A saved layout from an older build may lack categories added since, or
 // name ones that no longer exist — keep it valid rather than discarding it.
 function normalizeDashboardLayout(saved) {
@@ -2811,7 +2915,7 @@ function RecordCard({ item, isExpanded, onToggle }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={cardSpring}
-      className="border rounded-md bg-white overflow-hidden"
+      className="border rounded-md bg-white overflow-hidden transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
       style={{ borderColor: T.border }}
     >
       <button onClick={onToggle} className="w-full text-left px-4 py-3 hover:bg-black/[0.02]">
@@ -2883,13 +2987,47 @@ Object.assign(NL, {
   "Dashboard": "Dashboard",
   "Detailed information": "Gedetailleerde informatie",
   "Show all": "Alles tonen",
-  "Filter": "Filter",
   "Treatment restriction": "Behandelbeperking",
+
+  // Encounters — filter coverage ("Search older records")
+  "No encounters match the selected filters in the loaded records.":
+    "Geen contactmomenten in de geladen gegevens komen overeen met de geselecteerde filters.",
+  "Searching older records…": "Oudere gegevens doorzoeken…",
+  "Stop": "Stoppen",
+  "All records in this period searched": "Alle gegevens in deze periode doorzocht",
+  "Full record searched": "Volledig dossier doorzocht",
+  "Searched back to": "Doorzocht tot",
+  "Still loading": "Nog aan het laden",
+  "older records not searched yet": "oudere gegevens nog niet doorzocht",
+  "Keep searching": "Verder zoeken",
+  "Search older records": "Oudere gegevens doorzoeken",
+
+  // Generated encounter history (SOURCE_CONFIG) — "Type | Detail" kept intact
+  "Outpatient visit | GP consultation": "Poliklinisch bezoek | Huisartsconsult",
+  "Outpatient visit | Diabetes check-up": "Poliklinisch bezoek | Diabetescontrole",
+  "Outpatient visit | COPD check-up": "Poliklinisch bezoek | COPD-controle",
+  "Teleconsult | Telephone consultation": "Teleconsult | Telefonisch consult",
+  "Outpatient visit | Home visit": "Poliklinisch bezoek | Huisbezoek",
+  "Imaging | Chest X-ray": "Beeldvorming | Thoraxfoto",
+  "Outpatient visit | Lung function test": "Poliklinisch bezoek | Longfunctieonderzoek",
+  "Therapy session | Pulmonary rehabilitation": "Therapiesessie | Longrevalidatie",
+  "Outpatient visit | Internal medicine follow-up": "Poliklinisch bezoek | Controle interne geneeskunde",
+  "Teleconsult | Diabetes nurse call": "Teleconsult | Gesprek diabetesverpleegkundige",
+  "Therapy session | Physiotherapy": "Therapiesessie | Fysiotherapie",
+  "Outpatient visit | Oncology consultation": "Poliklinisch bezoek | Oncologisch consult",
+  "Imaging | PET-CT": "Beeldvorming | PET-CT",
+  "Day treatment | Radiotherapy session": "Dagbehandeling | Radiotherapiesessie",
+  "Teleconsult | Oncology nurse call": "Teleconsult | Gesprek oncologieverpleegkundige",
+  "Emergency | COPD exacerbation": "Spoedeisende hulp | COPD-exacerbatie",
+  "Emergency | Chest pain": "Spoedeisende hulp | Pijn op de borst",
+  "Emergency | Hypoglycaemia": "Spoedeisende hulp | Hypoglykemie",
   "Customize view": "Weergave aanpassen",
   "Edit dashboard": "Dashboard bewerken",
   "Select the categories that you like to be visible on the dashboard. To re-order them, just drag & drop each category — also between columns.":
     "Selecteer de categorieën die u op het dashboard wilt zien. Sleep een categorie om de volgorde te wijzigen — ook tussen kolommen.",
   "1 column": "1 kolom",
+  "Select the categories that you like to be visible in the list. To re-order them, just drag & drop each category.":
+    "Selecteer de categorieën die u in de lijst wilt zien. Sleep een categorie om de volgorde te wijzigen.",
   "2 columns": "2 kolommen",
   "3 columns": "3 kolommen",
 
@@ -3132,7 +3270,9 @@ function SourceCountIndicator({ loadedCount, allSettled, isActive }) {
 // which category you're looking at. No failed/retry branch — no source can
 // ever reach that state (see SOURCE_CONFIG), so that UI would be unreachable
 // dead code here, same reasoning as Documents' own DocumentsSourcesPanel.
-function SourcesHeader({ title, sourcesOpen, setSourcesOpen, sourceStatus, loadedCount, allSettled, lastUpdated, onRefresh, categoryEntries }) {
+// `moreAvailable`: every source has responded but older pages are still on
+// the server — then "Complete as of" would be misleading, so it says "Updated:".
+function SourcesHeader({ title, sourcesOpen, setSourcesOpen, sourceStatus, loadedCount, allSettled, lastUpdated, onRefresh, categoryEntries, moreAvailable }) {
   const { t, lang } = useLanguage();
   return (
     <>
@@ -3161,8 +3301,8 @@ function SourcesHeader({ title, sourcesOpen, setSourcesOpen, sourceStatus, loade
             </span>
             {sourcesOpen ? <ChevronUp size={14} style={{ color: T.primary }} /> : <ChevronDown size={14} style={{ color: T.primary }} />}
           </button>
-          <FadeSwap id={allSettled ? "complete" : "updating"}>
-            {allSettled
+          <FadeSwap id={allSettled && !moreAvailable ? "complete" : "updating"}>
+            {allSettled && !moreAvailable
               ? <span>{t("Complete as of")} {lastUpdated ? formatClock(lastUpdated) : "—"}</span>
               : <span>{t("Updated:")} {lastUpdated ? formatClock(lastUpdated) : "—"}</span>}
           </FadeSwap>
@@ -3375,14 +3515,71 @@ function FilterAccordion({ title, open, onToggle, children }) {
   );
 }
 
+// Shown under a filtered Encounters list: how far back the filters have
+// actually searched, and a way to search further. Without it, "0 results" (or
+// "3 results") can't be told apart from "not loaded yet".
+function FilterCoverageFooter({ found, complete, periodFiltered, searchedBack, remaining, checked, total, search, onSearch, onStop }) {
+  const { t, lang } = useLanguage();
+  const foundText =
+    lang === "nl"
+      ? `${found} ${found === 1 ? "contactmoment" : "contactmomenten"} gevonden`
+      : `${found} ${found === 1 ? "encounter" : "encounters"} found`;
+  const searching = search && !search.paused;
+  return (
+    <div className="mt-4 rounded-md border px-4 py-3 text-[13px]" style={{ borderColor: T.border, backgroundColor: T.light, color: T.gray600 }}>
+      {searching ? (
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-2">
+            <LoaderCircle size={15} className="animate-spin" style={{ color: T.primary }} />
+            {t("Searching older records…")}{" "}
+            {lang === "nl" ? `${checked} van ${total} gecontroleerd` : `${checked} of ${total} checked`}
+          </span>
+          <button onClick={onStop} className="font-semibold" style={{ color: T.primary }}>{t("Stop")}</button>
+        </div>
+      ) : complete ? (
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={15} style={{ color: T.success }} />
+          {foundText} · {periodFiltered ? t("All records in this period searched") : t("Full record searched")}
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <span>
+            {found > 0 && <>{foundText} · </>}
+            {searchedBack ? <>{t("Searched back to")} {searchedBack}</> : t("Still loading")}
+            {" · "}
+            {remaining} {t("older records not searched yet")}
+          </span>
+          <motion.button
+            onClick={onSearch}
+            whileTap={{ scale: 0.97 }}
+            className="shrink-0 border text-sm rounded-md px-4 py-1.5 bg-white"
+            style={{ borderColor: T.primary, color: T.primary }}
+          >
+            {search?.paused ? t("Keep searching") : t("Search older records")}
+          </motion.button>
+        </div>
+      )}
+      <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: T.lightBg }}>
+        <motion.div
+          className="h-full rounded-full"
+          style={{ backgroundColor: complete ? T.success : T.primary }}
+          animate={{ width: `${total ? Math.round((checked / total) * 100) : 100}%` }}
+          transition={{ duration: 0.3 }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ---------- PX360 Dashboard sub-tab (Figma 13561-53679) ---------- */
 
 // How many of a category's most recent records a Dashboard card shows; the
 // rest are one click away via "Show all", which opens the Detailed view.
 const DASHBOARD_CARD_LIMIT = 3;
 
-// The pinned red strip above the Dashboard grid: the patient's current CPR
-// decision (Figma node 13561-53814). Check for "permitted", X otherwise.
+// The pinned red strip above the Dashboard grid and the Detailed view: the
+// patient's current CPR decision (Figma node 13561-53814). Check for
+// "permitted", X otherwise. Clicking it opens Treatment restrictions.
 function TreatmentRestrictionBanner({ entry, onOpen }) {
   const { t } = useLanguage();
   const [type, value] = t(entry.label).split("|").map((x) => x.trim());
@@ -3452,9 +3649,10 @@ function DashboardRow({ date, source, label, tone, severity, isExpanded, onToggl
 }
 
 // A Dashboard category card (Figma "BGZ category", 13561-53836): icon + title
-// header that collapses the card, the category's status pills + Filter, and
-// its most recent records.
-function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed, onToggleCollapsed, onFilter, onShowAll, totalCount, loading, children }) {
+// header that collapses the card, the category's status pills, and its most
+// recent records. (The Figma card's "Filter" link was removed on request —
+// filtering lives in the Detailed view.)
+function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed, onToggleCollapsed, onShowAll, totalCount, loading, children }) {
   const { t } = useLanguage();
   const Icon = category.icon;
   return (
@@ -3499,9 +3697,6 @@ function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed
                     );
                   })}
                 </div>
-                <button onClick={onFilter} className="flex items-center gap-1 text-[14px]" style={{ color: T.bodyText }}>
-                  <Filter size={15} style={{ color: T.primary, fill: T.primary }} /> {t("Filter")}
-                </button>
               </div>
               {loading ? (
                 <div className="flex items-center gap-2 text-sm py-4" style={{ color: T.gray500 }}>
@@ -3526,7 +3721,7 @@ function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed
   );
 }
 
-function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange, layout }) {
+function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange, layout, railLayout }) {
   const { t } = useLanguage();
   const [runId, setRunId] = useState(0);
   const [sourceStatus, setSourceStatus] = useState({});
@@ -3538,6 +3733,15 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
   const toggleExpand = (id) => setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   // Which left-rail category's content shows in the right column.
   const [activeCategory, setActiveCategory] = useState("encounters");
+  // Left-rail categories in the viewer's chosen order, hidden ones left out
+  // (Detailed information's "Customize view"). If the open category gets
+  // hidden, fall back to the first one still shown.
+  const railCategories = railLayout.columns[0]
+    .filter((item) => item.visible)
+    .map((item) => PX360_CATEGORIES.find((c) => c.key === item.key));
+  useEffect(() => {
+    if (!railCategories.some((c) => c.key === activeCategory)) setActiveCategory(railCategories[0].key);
+  }, [railLayout]);
 
   // Sort order: a display preference, re-applied to whatever is already
   // merged rather than re-running the simulation.
@@ -3649,12 +3853,15 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
 
   // Ask every fully-responded source that still has server-side records for
   // its next page. Their status rows return to a (re)fetching state.
-  const fetchMoreFromSources = () => {
+  // `onlyIds` limits it to the organisations selected in the page filter;
+  // `fast` is used by "Search older records", which pages repeatedly.
+  const fetchMoreFromSources = ({ onlyIds, fast } = {}) => {
     SOURCE_CONFIG.forEach((source) => {
+      if (onlyIds && !onlyIds.includes(source.id)) return;
       const st = sourceStatus[source.id];
       const fetched = fetchedRef.current[source.id] || 0;
       if (st?.state === "loaded" && fetched < source.entries.length) {
-        runSource(source, { phase: "more", delayMs: () => 3000 + Math.random() * 2000 });
+        runSource(source, { phase: "more", delayMs: fast ? () => 900 + Math.random() * 700 : () => 3000 + Math.random() * 2000 });
       }
     });
   };
@@ -3785,6 +3992,56 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
     return st?.state === "loaded" ? sum + (st.total - st.fetched) : sum;
   }, 0);
 
+  // ---- How much of the history the front-end filters have actually seen ----
+  // Filters only run over what's loaded, so "0 results" (or "3 results") is
+  // only final if every selected source has been loaded back past the start
+  // of the filtered period. Each source pages newest-first, so what's loaded
+  // is "everything since its oldest loaded record". The limiting boundary is
+  // the most recent of those dates across still-incomplete sources.
+  const encounterFiltersActive =
+    activeFilterCount > 0 || timeFilter !== "all" || (sourceFilter && sourceFilter.size < SOURCE_CONFIG.length);
+  const selectedSources = SOURCE_CONFIG.filter((s) => !sourceFilter || sourceFilter.has(s.id));
+  const coverage = selectedSources.reduce(
+    (acc, s) => {
+      const total = s.entries.length;
+      const fetched = Math.min(sourceStatus[s.id]?.fetched ?? 0, total);
+      acc.total += total;
+      acc.checked += fetched;
+      if (fetched < total) {
+        acc.remaining += total - fetched;
+        // null = this source hasn't delivered anything yet, so nothing is known.
+        const oldest = fetched > 0 ? s.entries[fetched - 1].sortDate : null;
+        acc.boundary = acc.boundary === undefined ? oldest : oldest === null || acc.boundary === null ? null : oldest > acc.boundary ? oldest : acc.boundary;
+      }
+      return acc;
+    },
+    { total: 0, checked: 0, remaining: 0, boundary: undefined }
+  );
+  const windowStart = timeWindowStart(timeFilter);
+  const coverageComplete =
+    coverage.boundary === undefined || (windowStart !== null && coverage.boundary !== null && windowStart >= coverage.boundary);
+
+  // "Search older records": keep paging the selected sources (fast) until 10
+  // more matches turn up, the filtered period is fully covered, or 5 rounds
+  // have run — then pause and let the user decide whether to keep going.
+  const [olderSearch, setOlderSearch] = useState(null); // { startCount, rounds, paused }
+  const anySelectedLoading = selectedSources.some((s) => sourceStatus[s.id]?.state === "loading");
+  useEffect(() => setOlderSearch(null), [runId]);
+  useEffect(() => {
+    if (!olderSearch || olderSearch.paused || anySelectedLoading) return;
+    if (coverageComplete || displayedItems.length - olderSearch.startCount >= 10) {
+      setOlderSearch(null);
+      return;
+    }
+    if (olderSearch.rounds >= 5) {
+      setOlderSearch((prev) => ({ ...prev, paused: true }));
+      return;
+    }
+    fetchMoreFromSources({ onlyIds: selectedSources.map((s) => s.id), fast: true });
+    setOlderSearch((prev) => ({ ...prev, rounds: prev.rounds + 1 }));
+  }, [olderSearch, anySelectedLoading, coverageComplete, displayedItems.length]);
+  const startOlderSearch = () => setOlderSearch({ startCount: displayedItems.length, rounds: 0, paused: false });
+
   // ---- Dashboard sub-tab ----
   const [collapsedCards, setCollapsedCards] = useState({});
   const dashboardColumns = layout.columns.map((col) =>
@@ -3794,13 +4051,12 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
     .filter((e) => e.phase === "current" && e.permitted !== undefined)
     .sort((a, b) => parseDMY(b.date) - parseDMY(a.date))[0];
 
-  // "Show all" / "Filter" / the banner jump into the Detailed view on that
-  // category, back at the top of the page.
-  const openInDetailed = (catKey, { withFilters = false } = {}) => {
+  // "Show all" and the banner jump into the Detailed view on that category,
+  // back at the top of the page.
+  const openInDetailed = (catKey) => {
     setActiveCategory(catKey);
     onViewChange("detailed");
     if (scrollRef?.current) scrollRef.current.scrollTop = 0;
-    if (withFilters) setFiltersOpen(true);
   };
 
   const renderDashboardCard = (cat) => {
@@ -3808,7 +4064,6 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
       category: cat,
       collapsed: !!collapsedCards[cat.key],
       onToggleCollapsed: () => setCollapsedCards((prev) => ({ ...prev, [cat.key]: !prev[cat.key] })),
-      onFilter: () => openInDetailed(cat.key, { withFilters: true }),
       onShowAll: () => openInDetailed(cat.key),
     };
     if (cat.key === "encounters") {
@@ -3876,9 +4131,12 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
 
   return (
     <>
+    {/* Pinned in both views: a CPR decision must never depend on which view
+        or rail category the viewer happens to have open. */}
+    {currentCpr && <TreatmentRestrictionBanner entry={currentCpr} onOpen={() => openInDetailed("treatment")} />}
+
     {view === "dashboard" && (
       <div>
-        {currentCpr && <TreatmentRestrictionBanner entry={currentCpr} onOpen={() => openInDetailed("treatment")} />}
         <div className="flex items-start gap-4">
           {dashboardColumns.map((cats, col) => (
             <div key={col} className="flex-1 min-w-0 flex flex-col gap-4">
@@ -3894,7 +4152,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
       {/* Tall enough for all BgZ categories to scroll within the rail itself
           when the page is scrolled down a long Encounters list. */}
       <div className="flex flex-col self-start sticky top-6 max-h-[calc(100vh-190px)] overflow-y-auto rounded-sm border border-[#DEE2E6]">
-        {PX360_CATEGORIES.map((c, i) => {
+        {railCategories.map((c, i) => {
           const isActive = activeCategory === c.key;
           const Icon = c.icon;
           return (
@@ -3918,6 +4176,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
         <>
         <SourcesHeader
           title="Encounters"
+          moreAvailable={serverRemaining > 0}
           sourcesOpen={sourcesOpen}
           setSourcesOpen={setSourcesOpen}
           sourceStatus={sourceStatus}
@@ -4003,7 +4262,9 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0, transition: { duration: 0.12 } }}
               >
-                {t("No encounters match the selected filters.")}{" "}
+                {coverageComplete
+                  ? t("No encounters match the selected filters.")
+                  : t("No encounters match the selected filters in the loaded records.")}{" "}
                 <button onClick={clearFilters} className="underline font-semibold" style={{ color: T.primary }}>
                   {t("Clear filters")}
                 </button>
@@ -4020,7 +4281,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.15 } }}
                   transition={{ ...cardSpring, opacity: { duration: 0.25 } }}
-                  className="border rounded-md bg-white overflow-hidden"
+                  className="border rounded-md bg-white overflow-hidden transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
                   style={{ borderColor: T.border }}
                 >
                   <button
@@ -4066,7 +4327,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
         </div>
 
         <AnimatePresence initial={false}>
-          {serverRemaining > 0 && encountersPhase !== "planned" && (
+          {serverRemaining > 0 && encountersPhase !== "planned" && !encounterFiltersActive && (
             <motion.div
               key="show-more"
               className="flex justify-center mt-4"
@@ -4075,7 +4336,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
               exit={{ opacity: 0 }}
             >
               <motion.button
-                onClick={fetchMoreFromSources}
+                onClick={() => fetchMoreFromSources()}
                 whileTap={{ scale: 0.97 }}
                 className="border text-sm rounded-md px-6 py-2"
                 style={{ borderColor: T.primary, color: T.primary }}
@@ -4085,6 +4346,22 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
                   <span>({serverRemaining})</span>
                 </FadeSwap>
               </motion.button>
+            </motion.div>
+          )}
+          {encounterFiltersActive && encountersPhase !== "planned" && visibleItems.length > 0 && (
+            <motion.div key="coverage" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <FilterCoverageFooter
+                found={displayedItems.length}
+                complete={coverageComplete}
+                periodFiltered={windowStart !== null}
+                searchedBack={coverage.boundary ? coverage.boundary.split("-").reverse().join("/") : null}
+                remaining={coverage.remaining}
+                checked={coverage.checked}
+                total={coverage.total}
+                search={olderSearch}
+                onSearch={startOlderSearch}
+                onStop={() => setOlderSearch(null)}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -4354,7 +4631,7 @@ function TimeFilterDropdown({ value, onChange }) {
 
 // On/off switch as the Figma "switch-input" draws it: 32×16, primary fill
 // with a white knob when on, white with a 25% black outline/knob when off.
-function DashboardSwitch({ on, onChange, label }) {
+function DashboardSwitch({ on, onChange, label, disabled }) {
   return (
     <button
       type="button"
@@ -4362,7 +4639,8 @@ function DashboardSwitch({ on, onChange, label }) {
       aria-checked={on}
       aria-label={label}
       onClick={onChange}
-      className="w-8 h-4 rounded-[32px] p-[2px] flex items-center shrink-0 transition-colors"
+      disabled={disabled}
+      className="w-8 h-4 rounded-[32px] p-[2px] flex items-center shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       style={on ? { backgroundColor: T.primary, justifyContent: "flex-end" } : { backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.25)" }}
     >
       <span className="w-3 h-3 rounded-full" style={{ backgroundColor: on ? "#fff" : "rgba(0,0,0,0.25)" }} />
@@ -4388,14 +4666,19 @@ function LayoutTile({ columns, selected, onSelect, label }) {
   );
 }
 
-// "Customize view" → Edit dashboard modal (Figma 12326-242709): choose 1/2/3
-// columns, toggle each category, and drag categories to reorder them within
-// a column or move them to another one — each panel is one Dashboard column.
-// Edits a draft; nothing changes on the Dashboard until Save. The Figma
-// frame's "Timeline" tab and per-category "Set filter" are not built yet.
-function CustomizeDashboardModal({ layout, onSave, onClose }) {
+// "Customize view" modal, in two modes:
+// - Dashboard ("Edit dashboard", Figma 12326-242709): choose 1/2/3 columns,
+//   toggle each category, and drag categories to reorder them within a column
+//   or move them to another one — each panel is one Dashboard column.
+// - Detailed information (`railMode`, Figma 13589-372002): one list, no layout
+//   picker — toggles and drag order for the left rail. At least one category
+//   must stay on, so the last one's switch is disabled.
+// Edits a draft; nothing changes until Save. The dashboard frame's "Timeline"
+// tab and per-category "Set filter" are not built yet.
+function CustomizeDashboardModal({ layout, onSave, onClose, railMode }) {
   const { t } = useLanguage();
   const [draft, setDraft] = useState(layout);
+  const visibleCount = draft.columns.flat().filter((item) => item.visible).length;
   const [dragKey, setDragKey] = useState(null);
   // Where the dragged row would land: { col, index } (insert before index).
   const [dropAt, setDropAt] = useState(null);
@@ -4439,11 +4722,14 @@ function CustomizeDashboardModal({ layout, onSave, onClose }) {
   const DropLine = () => <div className="h-[3px] -mt-[5px] mb-[2px] rounded-full relative z-10" style={{ backgroundColor: T.primary }} />;
 
   return (
-    <Modal title="Edit dashboard" onClose={onClose} width={1100}>
+    <Modal title={railMode ? "Customize view" : "Edit dashboard"} onClose={onClose} width={railMode ? 640 : 1100}>
       <div className="-m-6 p-6" style={{ backgroundColor: T.light }}>
         <p className="text-[14px] leading-[1.5] mb-6" style={{ color: T.bodyText }}>
-          {t("Select the categories that you like to be visible on the dashboard. To re-order them, just drag & drop each category — also between columns.")}
+          {railMode
+            ? t("Select the categories that you like to be visible in the list. To re-order them, just drag & drop each category.")
+            : t("Select the categories that you like to be visible on the dashboard. To re-order them, just drag & drop each category — also between columns.")}
         </p>
+        {!railMode && (
         <div className="flex justify-center gap-6 mb-6">
           {[1, 2, 3].map((n) => (
             <LayoutTile
@@ -4455,6 +4741,7 @@ function CustomizeDashboardModal({ layout, onSave, onClose }) {
             />
           ))}
         </div>
+        )}
         <div className="flex items-start gap-2">
           {draft.columns.map((col, c) => (
             <div
@@ -4500,7 +4787,12 @@ function CustomizeDashboardModal({ layout, onSave, onClose }) {
                           <span className="px-2 text-[15px] leading-[1.5] truncate" style={{ color: T.bodyText }}>{t(cat.label)}</span>
                         </span>
                         <span className="px-2 flex items-center">
-                          <DashboardSwitch on={item.visible} onChange={() => toggle(item.key)} label={t(cat.label)} />
+                          <DashboardSwitch
+                            on={item.visible}
+                            onChange={() => toggle(item.key)}
+                            label={t(cat.label)}
+                            disabled={railMode && item.visible && visibleCount === 1}
+                          />
                         </span>
                       </div>
                     </div>
@@ -4549,7 +4841,7 @@ function Px360ViewSwitch({ value, onChange }) {
 // The screen shown when PatientBar's PX360 tab is clicked — reuses this
 // app's own Sidebar/TopHeader/PatientBar rather than duplicating the
 // standalone encounters-prototype's own shell.
-function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona, onReset, unreadCount, onOpenNotifications, caseManagerPersonaId, sidebarCollapsed, onToggleSidebar, dashboardLayout, onDashboardLayoutChange }) {
+function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona, onReset, unreadCount, onOpenNotifications, caseManagerPersonaId, sidebarCollapsed, onToggleSidebar, dashboardLayout, onDashboardLayoutChange, railLayout, onRailLayoutChange }) {
   const { t } = useLanguage();
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const contentScrollRef = useRef(null);
@@ -4573,11 +4865,9 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
               {/* "Patient 360" is a product/module name, like "CAREMAPS" elsewhere — deliberately not translated */}
               <h2 className="text-[24px] font-semibold leading-[1.2]" style={{ color: T.black }}>Patient 360</h2>
               <div className="flex items-center gap-6">
-                {view === "dashboard" && (
-                  <button onClick={() => setCustomizeOpen(true)} className="flex items-center gap-[2px] text-[14px] leading-[1.5]" style={{ color: T.primary }}>
-                    <Settings size={20} style={{ color: T.primary }} /> {t("Customize view")}
-                  </button>
-                )}
+                <button onClick={() => setCustomizeOpen(true)} className="flex items-center gap-[2px] text-[14px] leading-[1.5]" style={{ color: T.primary }}>
+                  <Settings size={20} style={{ color: T.primary }} /> {t("Customize view")}
+                </button>
                 <Px360ViewSwitch value={view} onChange={setView} />
               </div>
             </div>
@@ -4585,15 +4875,17 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
               <OrgFilterDropdown selected={sourceFilter} onChange={setSourceFilter} />
               <TimeFilterDropdown value={timeFilter} onChange={setTimeFilter} />
             </div>
-            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} layout={dashboardLayout} />
+            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} layout={dashboardLayout} railLayout={railLayout} />
           </div>
         </div>
       </div>
+      {/* One "Customize view" button; what it edits depends on the view. */}
       {customizeOpen && (
         <CustomizeDashboardModal
-          layout={dashboardLayout}
+          railMode={view === "detailed"}
+          layout={view === "detailed" ? railLayout : dashboardLayout}
           onSave={(next) => {
-            onDashboardLayoutChange(next);
+            (view === "detailed" ? onRailLayoutChange : onDashboardLayoutChange)(next);
             setCustomizeOpen(false);
           }}
           onClose={() => setCustomizeOpen(false)}
@@ -7753,6 +8045,8 @@ export default function CaremapsPrototype() {
   const [notifications, setNotifications] = useState(() => loadSavedDemoState()?.notifications ?? SEED_NOTIFICATIONS);
   // PX360 Dashboard layout (Customize view) — part of the saved demo state.
   const [px360Layout, setPx360Layout] = useState(() => normalizeDashboardLayout(loadSavedDemoState()?.px360Layout));
+  // PX360 Detailed information left rail (its own Customize view).
+  const [px360RailLayout, setPx360RailLayout] = useState(() => normalizeRailLayout(loadSavedDemoState()?.px360RailLayout));
   const unreadCount = notifications.filter((n) => n.recipientId === personaId && !n.read).length;
   // Set right before navigating to "detail" from a message notification's
   // "Open in Messages" button, so `CaremapDetail` mounts straight into the
@@ -7817,8 +8111,8 @@ export default function CaremapsPrototype() {
   // picks up where you left off. "Reset demo" (in the account menu) clears
   // this and returns to the app's true initial state.
   useEffect(() => {
-    saveDemoState({ screen, caremap, personaId, notifications, px360Layout });
-  }, [screen, caremap, personaId, notifications, px360Layout]);
+    saveDemoState({ screen, caremap, personaId, notifications, px360Layout, px360RailLayout });
+  }, [screen, caremap, personaId, notifications, px360Layout, px360RailLayout]);
 
   const resetDemo = () => {
     clearSavedDemoState();
@@ -7831,6 +8125,7 @@ export default function CaremapsPrototype() {
     setPersonaId("dr-henley");
     setNotifications(SEED_NOTIFICATIONS);
     setPx360Layout(defaultDashboardLayout());
+    setPx360RailLayout(defaultRailLayout());
   };
 
   const createCaremap = (unit, template) => {
@@ -8167,6 +8462,8 @@ export default function CaremapsPrototype() {
           onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
           dashboardLayout={px360Layout}
           onDashboardLayoutChange={setPx360Layout}
+          railLayout={px360RailLayout}
+          onRailLayoutChange={setPx360RailLayout}
         />
       )}
       {screen === "documents" && (

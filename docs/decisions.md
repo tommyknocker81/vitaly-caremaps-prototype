@@ -1045,3 +1045,18 @@ pinned banner, because a restriction like "Not for resuscitation" shouldn't be s
 can accidentally hide. It's offered as an ordinary card instead, and the banner always shows.
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
 
+**2026-09-28 — Encounter filters say how far back they searched, with "Search older records"**
+Why: filtering happens in the browser over loaded records only, so the user flagged that "0
+results" can't be told apart from "not loaded yet". The same goes for a short result list,
+which can read as "that's all there is". Chosen approach: track how far back each source has
+loaded, and treat a filtered result as final only when the filtered period is fully covered.
+Otherwise say what was searched and offer "Search older records", which pages until it finds
+matches, covers the period, or reaches a limit (then asks). The mock history was grown to ~315
+encounters, because with 21 everything loaded at once and the problem couldn't be seen.
+Ruled out: loading the full history up front (slow, defeats progressive loading); silently
+auto-loading whenever a filter returns nothing (the list keeps changing and the user can't tell
+searching from done); a generic "No results" (the ambiguity itself). The real long-term fix,
+sending date/organisation/type filters to the source APIs, is out of scope for a prototype and was
+noted to the user.
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
+
