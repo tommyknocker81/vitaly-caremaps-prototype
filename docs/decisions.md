@@ -1101,3 +1101,15 @@ Ruled out: icons per procedure code (unbounded); icons on the Diagnoses/Medicati
 bars, so icons would add noise); reusing them on cards and in Detailed information (not requested).
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
 
+**2026-10-01 — Filters drawer sections per category, from each BgZ building block's own fields**
+Why: the user noticed allergies couldn't be filtered by status or severity. Every record category
+only had a generic "Type" section built from label prefixes. Clinicians filter on the fields that
+matter for that kind of data: severity and criticality for allergies, route and prescriber for
+medication, an abnormal interpretation for lab results. So each category declares its own drawer
+sections, taken from the fields of its zib. Status appears in the drawer as well as in the pills,
+synced (the user's choice), so the drawer shows every filter in one place. Categories with too few
+records to need a filter (treatment restrictions, demographics, financial) have no Filters button.
+The user approved adding mock records so each filter has more than one value.
+Ruled out: status only in the pills (user preferred both, synced); per-category time or organisation
+filters (they stay page-level, see the time/source discussion of the same day).
+Related: [docs/features/px360-tab.md](features/px360-tab.md)

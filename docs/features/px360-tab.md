@@ -44,6 +44,33 @@ The layout survives a reload, and Reset demo restores the default.
 **Not built yet:** "Set filter" per category in the modal (e.g. only active medication), the
 modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
 
+**Per-category filters** (added 2026-10-01). Each record category's Filters drawer offers the
+sections that fit its BgZ building block, instead of a single generic "Type":
+
+| Category | Drawer sections |
+|---|---|
+| Allergies | Status, Category, Criticality, Severity, Verification status |
+| Complaints and diagnoses | Status, Type, Verification status |
+| Medication | Status, Drug class, Route, Prescriber |
+| Procedures | Status, Procedure group (the timeline's icon groups), Performed by |
+| Laboratory results | Test, Interpretation (records without one count as Normal) |
+| Alerts | Status, Type |
+| Healthcare providers | Role |
+| Contact persons | Relationship, Role |
+| Vital signs, Vaccinations, Devices, Functional status, Social history | Type |
+| Treatment restrictions, Demographics, Financial information | none (no Filters button) |
+
+- The drawer's Status section mirrors the status pills above the list: one state, two ways to set
+  it.
+- Every option shows its count within the selected status.
+- Values match within a section (OR) and across sections (AND).
+- Sections are declared per category in `PX360_CATEGORIES` (`filters: [typeFilter(...),
+  detailFilter(...), procedureGroupFilter]`). Options are built from the records themselves, so
+  adding a record with a new value adds a checkbox.
+- Added records so the filters have something to choose between: allergies Peanuts (food, severe),
+  Lactose intolerance (food, mild, unconfirmed) and Latex (environmental, active); lab results
+  Sodium and Potassium, both with a Normal interpretation.
+
 ## Implementation notes
 
 - Ported wholesale from `EncountersPrototype.jsx` (~1,250 lines of the ~1,370-line source file —
@@ -119,8 +146,12 @@ modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
   after screenshots the user supplied of the intended design.
   - Diagnosis content (`DIAGNOSIS_ENTRIES`) ties directly into the PZP tab's own established
     narrative — reuses its "Main diagnosis" (metastatic non-small-cell lung carcinoma) and "Relevant
-    comorbidity" (moderate COPD) verbatim, plus a Type 2 Diabetes diagnosis and a knee-pain
-    complaint kept close to the reference screenshots.
+    comorbidity" (moderate COPD) verbatim as the only two active diagnoses, plus resolved
+    pneumonia and knee-pain records. A Type 2 Diabetes diagnosis and its metformin prescription
+    were removed to keep the demo to 2 active diagnoses and 3 active medications, along with
+    everything that only made sense with diabetes (HbA1c lab, glucose meter, "diabetes" in the
+    internist's role; diabetes encounters folded into GP consultations and follow-up calls so the
+    encounter total stays at 315).
   - Treatment-restriction content (`RESTRICTION_ENTRIES`) tells a two-record history: an older
     (2023) "yes, but with limitations" GP record from the reference screenshot, followed by a more
     recent (2026) "Not for resuscitation" record that matches the PZP tab's own resuscitation

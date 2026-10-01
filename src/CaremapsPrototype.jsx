@@ -583,14 +583,12 @@ const NL = {
   // PX360 — Diagnoses/Treatment mock content
   "Diagnosis | Metastatic non-small-cell lung carcinoma": "Diagnose | Gemetastaseerd niet-kleincellig longcarcinoom",
   "Diagnosis | Moderate COPD": "Diagnose | Matige COPD",
-  "Diagnosis | Type 2 Diabetes Mellitus": "Diagnose | Diabetes mellitus type 2",
   "Complaint | Chronic pain limiting mobility": "Klacht | Chronische pijn met mobiliteitsbeperking",
   "Metastatic non-small-cell lung cancer with recent progression, discussed at MDT.":
     "Gemetastaseerd niet-kleincellig longcarcinoom met recente progressie, besproken in MDO.",
   "Lung, right upper lobe": "Long, rechter bovenkwab",
   "Moderate COPD, GOLD stage II-III, oxygen-dependent on exertion.": "Matige COPD, GOLD-stadium II-III, zuurstofafhankelijk bij inspanning.",
   "Lungs (bilateral)": "Longen (beiderzijds)",
-  "Type 2 diabetes mellitus, diet and oral medication controlled.": "Diabetes mellitus type 2, onder controle met dieet en orale medicatie.",
   "Chronic pain limiting mobility.": "Chronische pijn met mobiliteitsbeperking.",
   "Knee": "Knie",
   "Cardiopulmonary resuscitation | Yes, but with limitations": "Cardiopulmonale reanimatie | Ja, met beperkingen",
@@ -1458,8 +1456,8 @@ const SOURCE_CONFIG = [
   },
 ];
 
-// A realistic encounter volume. A 73-year-old with lung cancer, COPD and
-// diabetes has a few hundred encounters across organisations over ~6 years,
+// A realistic encounter volume. A 73-year-old with lung cancer and COPD
+// has a few hundred encounters across organisations over ~6 years,
 // not 21, and the "filters only see what's loaded" problem is only visible
 // at that scale. Generated from a fixed seed so every load (and every
 // reviewer) sees the same history. Visits get denser toward the present,
@@ -1468,8 +1466,7 @@ const SOURCE_CONFIG = [
 const GENERATED_ENCOUNTERS = {
   // [label, count, from, to]
   "gp-linde": [
-    ["Outpatient visit | GP consultation", 46, "2020-10-01", "2026-09-20"],
-    ["Outpatient visit | Diabetes check-up", 18, "2020-10-01", "2026-09-10"],
+    ["Outpatient visit | GP consultation", 64, "2020-10-01", "2026-09-20"],
     ["Outpatient visit | COPD check-up", 14, "2020-10-01", "2026-06-30"],
     ["Teleconsult | Telephone consultation", 22, "2020-10-01", "2026-09-22"],
     ["Outpatient visit | Home visit", 12, "2026-06-01", "2026-09-22"],
@@ -1485,7 +1482,7 @@ const GENERATED_ENCOUNTERS = {
   ],
   umcu: [
     ["Outpatient visit | Internal medicine follow-up", 20, "2020-10-01", "2026-09-01"],
-    ["Teleconsult | Diabetes nurse call", 14, "2020-10-01", "2026-08-30"],
+    ["Teleconsult | Follow-up call", 14, "2020-10-01", "2026-08-30"],
     ["Therapy session | Physiotherapy", 10, "2025-06-01", "2025-10-31"],
   ],
   erasmus: [
@@ -1887,19 +1884,6 @@ const DIAGNOSIS_ENTRIES = [
     ],
   },
   {
-    id: "d3",
-    date: "08/10/2025",
-    source: "UMC Utrecht",
-    label: "Diagnosis | Type 2 Diabetes Mellitus",
-    phase: "active",
-    detail: [
-      { label: "Explanation", value: "Type 2 diabetes mellitus, diet and oral medication controlled." },
-      { label: "Verification status", value: "Confirmed" },
-      { label: "Status", value: "ACTIVE" },
-      { label: "Date", value: "08/10/2025" },
-    ],
-  },
-  {
     id: "d5",
     date: "16/08/2025",
     source: "Maastricht UMC+",
@@ -2029,6 +2013,52 @@ const ALLERGY_ENTRIES = [
       { label: "Status", value: "RESOLVED" },
     ],
   },
+  {
+    id: "alg5",
+    date: "22/04/2017",
+    source: "UMC Utrecht",
+    label: "Food | Peanuts",
+    phase: "active",
+    severity: "high",
+    tone: "danger",
+    detail: [
+      { label: "Reaction", value: "Anaphylaxis" },
+      { label: "Severity", value: "Severe" },
+      { label: "Criticality", value: "High" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "alg6",
+    date: "05/03/2025",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Food | Lactose (intolerance)",
+    phase: "active",
+    severity: "low",
+    detail: [
+      { label: "Reaction", value: "Bloating and abdominal cramps" },
+      { label: "Severity", value: "Mild" },
+      { label: "Criticality", value: "Low" },
+      { label: "Verification status", value: "Unconfirmed" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
+  {
+    id: "alg7",
+    date: "15/04/2024",
+    source: "Erasmus MC",
+    label: "Environmental | Latex",
+    phase: "active",
+    severity: "moderate",
+    detail: [
+      { label: "Reaction", value: "Contact dermatitis" },
+      { label: "Severity", value: "Moderate" },
+      { label: "Criticality", value: "Low" },
+      { label: "Verification status", value: "Confirmed" },
+      { label: "Status", value: "ACTIVE" },
+    ],
+  },
 ];
 
 // `type` overrides the label-prefix filter key, since here the prefix is the
@@ -2076,21 +2106,6 @@ const MEDICATION_ENTRIES = [
       { label: "Route", value: "Inhalation" },
       { label: "Prescriber", value: "Dr. S. Janssen (Pulmonologist)" },
       { label: "Start date", value: "12/11/2021" },
-      { label: "Status", value: "ACTIVE" },
-    ],
-  },
-  {
-    id: "med4",
-    date: "08/10/2025",
-    source: "UMC Utrecht",
-    label: "Metformin 500 mg | 1 tablet 2× daily, with meals",
-    type: "Oral antidiabetic",
-    phase: "active",
-    detail: [
-      { label: "Indication", value: "Type 2 diabetes mellitus" },
-      { label: "Route", value: "Oral" },
-      { label: "Prescriber", value: "Dr. L. Bakker (Internist)" },
-      { label: "Start date", value: "08/10/2025" },
       { label: "Status", value: "ACTIVE" },
     ],
   },
@@ -2185,6 +2200,30 @@ const PROCEDURE_ENTRIES = [
 
 const LAB_ENTRIES = [
   {
+    id: "lab6",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Sodium | 139 mmol/L",
+    detail: [
+      { label: "Result", value: "139 mmol/L" },
+      { label: "Reference range", value: "135–145 mmol/L" },
+      { label: "Interpretation", value: "Normal" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
+    id: "lab7",
+    date: "10/09/2026",
+    source: "GP Practice de Linde, Amersfoort",
+    label: "Potassium | 4.3 mmol/L",
+    detail: [
+      { label: "Result", value: "4.3 mmol/L" },
+      { label: "Reference range", value: "3.5–5.0 mmol/L" },
+      { label: "Interpretation", value: "Normal" },
+      { label: "Date", value: "10/09/2026" },
+    ],
+  },
+  {
     id: "lab1",
     date: "10/09/2026",
     source: "GP Practice de Linde, Amersfoort",
@@ -2205,18 +2244,6 @@ const LAB_ENTRIES = [
       { label: "Result", value: "52 ml/min/1.73m²" },
       { label: "Reference range", value: "> 60 ml/min/1.73m²" },
       { label: "Interpretation", value: "Low" },
-      { label: "Date", value: "10/09/2026" },
-    ],
-  },
-  {
-    id: "lab3",
-    date: "10/09/2026",
-    source: "GP Practice de Linde, Amersfoort",
-    label: "HbA1c | 58 mmol/mol",
-    detail: [
-      { label: "Result", value: "58 mmol/mol" },
-      { label: "Reference range", value: "< 53 mmol/mol" },
-      { label: "Interpretation", value: "High" },
       { label: "Date", value: "10/09/2026" },
     ],
   },
@@ -2298,7 +2325,7 @@ const PROVIDER_ENTRIES = [
     label: "Internist | Dr. L. Bakker",
     detail: [
       { label: "Organisation", value: "UMC Utrecht" },
-      { label: "Role", value: "Treating specialist, diabetes" },
+      { label: "Role", value: "Treating specialist, internal medicine" },
       { label: "Phone", value: "+31 88 755 55 55" },
     ],
   },
@@ -2324,7 +2351,7 @@ const ALERT_ENTRIES = [
     label: "Reduced renal function | Adjust dosing",
     phase: "active",
     detail: [
-      { label: "Explanation", value: "eGFR 52; review metformin and opioid dosing." },
+      { label: "Explanation", value: "eGFR 52; review opioid dosing." },
       { label: "Status", value: "ACTIVE" },
       { label: "Start date", value: "10/09/2026" },
     ],
@@ -2574,16 +2601,6 @@ const DEVICE_ENTRIES = [
       { label: "Start date", value: "21/09/2022" },
     ],
   },
-  {
-    id: "dev4",
-    date: "08/10/2025",
-    source: "UMC Utrecht",
-    label: "Blood glucose meter | Self-monitoring",
-    detail: [
-      { label: "Indication", value: "Type 2 diabetes mellitus" },
-      { label: "Start date", value: "08/10/2025" },
-    ],
-  },
 ];
 
 const VACCINATION_ENTRIES = [
@@ -2703,26 +2720,45 @@ const FINANCIAL_ENTRIES = [
   },
 ];
 
+// Filters drawer sections for record categories. Each section groups records
+// by one value — the record's type (its `type`, or its label prefix before
+// "|"), or one of its detail fields — and a record passes when it matches any
+// ticked value in every section that has one ticked. `missing` names records
+// that lack the field (e.g. lab results without an "Interpretation" are normal).
+function typeFilter(title) {
+  return { key: "type", title, valueOf: simpleTypeKey, labelOf: (item, t) => (item.type ? t(item.type) : t(item.label).split("|")[0].trim()) };
+}
+function detailFilter(field, missing) {
+  const valueOf = (item) => item.detail?.find((d) => d.label === field)?.value ?? missing;
+  return { key: field, title: field, valueOf, labelOf: (item, t) => t(valueOf(item)) };
+}
+const procedureGroupFilter = {
+  key: "kind",
+  title: "Procedure group",
+  valueOf: (item) => item.kind,
+  labelOf: (item, t) => t(PROCEDURE_KINDS[item.kind].label),
+};
+
 // The left rail, in display order. `phases` drives the status pills above
 // each list (omitted = a single static "All (N)" pill, for categories where
 // no BgZ status split applies). Encounters has no `entries` — it's rendered by
 // its own paginated merge-on-arrival branch in EncountersSection.
 const PX360_CATEGORIES = [
   { key: "encounters", label: "Encounters", icon: CalendarDays, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }] },
-  { key: "diagnoses", label: "Complaints and diagnoses", icon: Stethoscope, entries: DIAGNOSIS_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }] },
+  { key: "diagnoses", label: "Complaints and diagnoses", icon: Stethoscope, entries: DIAGNOSIS_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Type"), detailFilter("Verification status")] },
   { key: "treatment", label: "Treatment restrictions", icon: ClipboardList, entries: RESTRICTION_ENTRIES, phases: [{ key: "current", label: "Current" }, { key: "previous", label: "Previous" }] },
-  { key: "allergies", label: "Allergies", icon: ShieldAlert, entries: ALLERGY_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }] },
-  { key: "medication", label: "Medication", icon: Pill, entries: MEDICATION_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "stopped", label: "Stopped" }] },
-  { key: "procedures", label: "Procedures", icon: ClipboardPlus, entries: PROCEDURE_ENTRIES, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }] },
-  { key: "lab", label: "Laboratory results", icon: FlaskConical, entries: LAB_ENTRIES },
-  { key: "providers", label: "Healthcare providers", icon: BriefcaseMedical, entries: PROVIDER_ENTRIES },
-  { key: "alerts", label: "Alerts", icon: Flag, entries: ALERT_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }] },
-  { key: "functional", label: "Functional status", icon: Accessibility, entries: FUNCTIONAL_ENTRIES },
-  { key: "vitals", label: "Vital signs", icon: HeartPulse, entries: VITALS_ENTRIES },
-  { key: "social", label: "Social history", icon: House, entries: SOCIAL_ENTRIES },
-  { key: "contacts", label: "Contact persons", icon: Users, entries: CONTACT_PERSON_ENTRIES },
-  { key: "devices", label: "Medical devices", icon: Armchair, entries: DEVICE_ENTRIES },
-  { key: "vaccinations", label: "Vaccinations", icon: Syringe, entries: VACCINATION_ENTRIES },
+  { key: "allergies", label: "Allergies", icon: ShieldAlert, entries: ALLERGY_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Category"), detailFilter("Criticality"), detailFilter("Severity"), detailFilter("Verification status")] },
+  { key: "medication", label: "Medication", icon: Pill, entries: MEDICATION_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "stopped", label: "Stopped" }], filters: [typeFilter("Drug class"), detailFilter("Route"), detailFilter("Prescriber")] },
+  { key: "procedures", label: "Procedures", icon: ClipboardPlus, entries: PROCEDURE_ENTRIES, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }], filters: [procedureGroupFilter, detailFilter("Performed by")] },
+  { key: "lab", label: "Laboratory results", icon: FlaskConical, entries: LAB_ENTRIES, filters: [typeFilter("Test"), detailFilter("Interpretation", "Normal")] },
+  { key: "providers", label: "Healthcare providers", icon: BriefcaseMedical, entries: PROVIDER_ENTRIES, filters: [detailFilter("Role")] },
+  { key: "alerts", label: "Alerts", icon: Flag, entries: ALERT_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Type")] },
+  { key: "functional", label: "Functional status", icon: Accessibility, entries: FUNCTIONAL_ENTRIES, filters: [typeFilter("Type")] },
+  { key: "vitals", label: "Vital signs", icon: HeartPulse, entries: VITALS_ENTRIES, filters: [typeFilter("Type")] },
+  { key: "social", label: "Social history", icon: House, entries: SOCIAL_ENTRIES, filters: [typeFilter("Type")] },
+  { key: "contacts", label: "Contact persons", icon: Users, entries: CONTACT_PERSON_ENTRIES, filters: [detailFilter("Relationship"), detailFilter("Role")] },
+  { key: "devices", label: "Medical devices", icon: Armchair, entries: DEVICE_ENTRIES, filters: [typeFilter("Type")] },
+  { key: "vaccinations", label: "Vaccinations", icon: Syringe, entries: VACCINATION_ENTRIES, filters: [typeFilter("Type")] },
   { key: "demographics", label: "Demographics and identification", icon: IdCard, entries: DEMOGRAPHICS_ENTRIES },
   { key: "financial", label: "Financial information", icon: Wallet, entries: FINANCIAL_ENTRIES },
 ];
@@ -2799,16 +2835,17 @@ function normalizeDashboardLayout(saved) {
 function simpleTypeKey(item) {
   return item.type ?? item.label.split("|")[0].trim();
 }
-// [{ key, label }] with the label already translated — taken from the
-// translated record label's own prefix, so no separate dictionary entry is
-// needed per type (every NL label keeps its "|" in the same place).
-function categoryFilterTypes(category, t) {
+// One drawer section's options — [{ key, label, count }] in first-seen order,
+// counted over `items` (the records in the selected status pill). Labels are
+// taken from the translated record, so no separate dictionary entry is needed
+// per type (every NL label keeps its "|" in the same place).
+function categoryFilterOptions(category, filter, items, t) {
   const seen = new Map();
   category.entries.forEach((item) => {
-    const key = simpleTypeKey(item);
-    if (!seen.has(key)) seen.set(key, item.type ? t(item.type) : t(item.label).split("|")[0].trim());
+    const key = filter.valueOf(item);
+    if (key != null && !seen.has(key)) seen.set(key, filter.labelOf(item, t));
   });
-  return [...seen].map(([key, label]) => ({ key, label }));
+  return [...seen].map(([key, label]) => ({ key, label, count: items.filter((item) => filter.valueOf(item) === key).length }));
 }
 
 // Record dates are plain "DD/MM/YYYY" strings, unlike Encounters' sortDate
@@ -2973,7 +3010,6 @@ Object.assign(NL, {
 
   // Generated encounter history (SOURCE_CONFIG) — "Type | Detail" kept intact
   "Outpatient visit | GP consultation": "Poliklinisch bezoek | Huisartsconsult",
-  "Outpatient visit | Diabetes check-up": "Poliklinisch bezoek | Diabetescontrole",
   "Outpatient visit | COPD check-up": "Poliklinisch bezoek | COPD-controle",
   "Teleconsult | Telephone consultation": "Teleconsult | Telefonisch consult",
   "Outpatient visit | Home visit": "Poliklinisch bezoek | Huisbezoek",
@@ -2981,7 +3017,6 @@ Object.assign(NL, {
   "Outpatient visit | Lung function test": "Poliklinisch bezoek | Longfunctieonderzoek",
   "Therapy session | Pulmonary rehabilitation": "Therapiesessie | Longrevalidatie",
   "Outpatient visit | Internal medicine follow-up": "Poliklinisch bezoek | Controle interne geneeskunde",
-  "Teleconsult | Diabetes nurse call": "Teleconsult | Gesprek diabetesverpleegkundige",
   "Therapy session | Physiotherapy": "Therapiesessie | Fysiotherapie",
   "Outpatient visit | Oncology consultation": "Poliklinisch bezoek | Oncologisch consult",
   "Imaging | PET-CT": "Beeldvorming | PET-CT",
@@ -3067,7 +3102,6 @@ Object.assign(NL, {
   "Opioid": "Opioïde",
   "Benzodiazepine": "Benzodiazepine",
   "Inhaler": "Inhalator",
-  "Oral antidiabetic": "Oraal antidiabeticum",
   "Chemotherapy": "Chemotherapie",
   "At home": "Thuis",
   "At rest": "In rust",
@@ -3084,14 +3118,12 @@ Object.assign(NL, {
   "Home care, palliative nursing": "Thuiszorg, palliatieve verpleging",
   "Treating specialist, lung carcinoma": "Behandelend specialist, longcarcinoom",
   "Treating specialist, COPD": "Behandelend specialist, COPD",
-  "Treating specialist, diabetes": "Behandelend specialist, diabetes",
+  "Treating specialist, internal medicine": "Behandelend specialist, interne geneeskunde",
   "Regional Homecare": "Regionale Thuiszorg",
   "Dr. M. Henley (General Practitioner)": "Dr. M. Henley (Huisarts)",
   "Dr. S. Janssen (Pulmonologist)": "Dr. S. Janssen (Longarts)",
   "Dr. R. de Wit (Pulmonologist)": "Dr. R. de Wit (Longarts)",
-  "Dr. L. Bakker (Internist)": "Dr. L. Bakker (Internist)",
   "Dr. P. Visser (Radiation Oncology)": "Dr. P. Visser (Radiotherapie)",
-  "Type 2 diabetes mellitus": "Diabetes mellitus type 2",
   "Metastatic non-small-cell lung carcinoma": "Gemetastaseerd niet-kleincellig longcarcinoom",
   "Suspected lung carcinoma": "Verdenking longcarcinoom",
   "Fall risk": "Valrisico",
@@ -3107,6 +3139,19 @@ Object.assign(NL, {
   "Medication | Iodinated contrast medium": "Medicatie | Jodiumhoudend contrastmiddel",
   "Medication | Codeine (intolerance)": "Medicatie | Codeïne (intolerantie)",
   "Environmental | Wasp venom": "Omgeving | Wespengif",
+  "Food | Peanuts": "Voeding | Pinda's",
+  "Food | Lactose (intolerance)": "Voeding | Lactose (intolerantie)",
+  "Environmental | Latex": "Omgeving | Latex",
+  "Anaphylaxis": "Anafylaxie",
+  "Bloating and abdominal cramps": "Opgeblazen gevoel en buikkrampen",
+  "Contact dermatitis": "Contactdermatitis",
+  "Sodium | 139 mmol/L": "Natrium | 139 mmol/L",
+  "Potassium | 4.3 mmol/L": "Kalium | 4.3 mmol/L",
+  "Normal": "Normaal",
+  "Category": "Categorie",
+  "Drug class": "Geneesmiddelgroep",
+  "Procedure group": "Verrichtingsgroep",
+  "Test": "Bepaling",
   "Urticaria and facial swelling": "Urticaria en zwelling van het gezicht",
   "Generalised rash after CT chest": "Gegeneraliseerde huiduitslag na CT thorax",
   "Severe nausea and vomiting": "Ernstige misselijkheid en braken",
@@ -3118,7 +3163,6 @@ Object.assign(NL, {
   "Midazolam 5 mg/ml | 2.5–5 mg subcutaneous as needed": "Midazolam 5 mg/ml | 2,5–5 mg subcutaan zo nodig",
   "Tiotropium/olodaterol 2.5/2.5 mcg inhaler | 2 puffs once daily":
     "Tiotropium/olodaterol 2,5/2,5 mcg inhalator | 1× daags 2 inhalaties",
-  "Metformin 500 mg | 1 tablet 2× daily, with meals": "Metformine 500 mg | 2× daags 1 tablet, bij de maaltijd",
   "Carboplatin/pemetrexed | 4 cycles, every 3 weeks": "Carboplatine/pemetrexed | 4 kuren, elke 3 weken",
   "Breathlessness and pain": "Kortademigheid en pijn",
   "Anxiety or terminal restlessness (rescue kit at home)": "Angst of terminale onrust (noodset thuis)",
@@ -3136,7 +3180,6 @@ Object.assign(NL, {
   // Laboratory results
   "Haemoglobin | 7.1 mmol/L": "Hemoglobine | 7,1 mmol/L",
   "eGFR | 52 ml/min/1.73m²": "eGFR | 52 ml/min/1,73m²",
-  "HbA1c | 58 mmol/mol": "HbA1c | 58 mmol/mol",
   "Albumin | 31 g/L": "Albumine | 31 g/L",
   "CRP | 86 mg/L": "CRP | 86 mg/L",
   "7.1 mmol/L": "7,1 mmol/L",
@@ -3157,7 +3200,7 @@ Object.assign(NL, {
   "Fall risk | Increased": "Valrisico | Verhoogd",
   "MRSA carrier | Negative on rescreening": "MRSA-drager | Negatief bij herscreening",
   "Home oxygen concentrator in use.": "Zuurstofconcentrator thuis in gebruik.",
-  "eGFR 52; review metformin and opioid dosing.": "eGFR 52; dosering metformine en opioïden herzien.",
+  "eGFR 52; review opioid dosing.": "eGFR 52; dosering opioïden herzien.",
   "Fall at home in 2022; walks with a rollator.": "Val thuis in 2022; loopt met een rollator.",
   "Positive screening in 2023, negative on three follow-up cultures.":
     "Positieve screening in 2023, negatief bij drie vervolgkweken.",
@@ -3203,7 +3246,6 @@ Object.assign(NL, {
   "Oxygen concentrator | 2 L/min on exertion and at night": "Zuurstofconcentrator | 2 L/min bij inspanning en 's nachts",
   "Hospital bed | Adjustable": "Hoog-laagbed | Verstelbaar",
   "Rollator | Walking aid": "Rollator | Loophulpmiddel",
-  "Blood glucose meter | Self-monitoring": "Bloedglucosemeter | Zelfcontrole",
   "Reduced mobility, home care": "Verminderde mobiliteit, thuiszorg",
 
   // Vaccinations
@@ -3387,7 +3429,7 @@ function SourcesHeader({ title, sourcesOpen, setSourcesOpen, sourceStatus, loade
 // exclusive), so `sortMenuOpen`/`sortOrder` and the filter drawer they open
 // are safely shared EncountersSection state rather than duplicated per
 // category. `phases` is [{ key, label, count }]; the pills filter the list.
-function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, sortOrder, sortMenuOpen, setSortMenuOpen, sortMenuRef, changeSortOrder, onOpenFilters }) {
+function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, showFilters = true, sortOrder, sortMenuOpen, setSortMenuOpen, sortMenuRef, changeSortOrder, onOpenFilters }) {
   const { t } = useLanguage();
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
@@ -3435,7 +3477,7 @@ function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, sort
             )}
           </AnimatePresence>
         </div>
-        <button onClick={onOpenFilters} className="flex items-center gap-1.5">
+        {showFilters && <button onClick={onOpenFilters} className="flex items-center gap-1.5">
           <Filter size={14} /> {t("Filters")}
           <AnimatePresence>
             {filterCount > 0 && (
@@ -3452,7 +3494,7 @@ function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, sort
               </motion.span>
             )}
           </AnimatePresence>
-        </button>
+        </button>}
       </div>
     </div>
   );
@@ -4415,9 +4457,9 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
   const [statusFilters, setStatusFilters] = useState({ arrived: true, planned: true });
   const [careProviderQuery, setCareProviderQuery] = useState("");
   const [drawerSections, setDrawerSections] = useState({ status: false, encounterType: true, careProvider: false });
-  // Record-list categories get the same Filters drawer, scoped to their own
-  // (much simpler) type taxonomy — see categoryFilterTypes. Keyed by category.
-  const [recordTypeFilters, setRecordTypeFilters] = useState({});
+  // Record-list categories get the same Filters drawer, with sections from
+  // their own `filters` spec. { [categoryKey]: { [sectionKey]: Set } }.
+  const [recordFilters, setRecordFilters] = useState({});
   // Which status pill is selected, per category (defaults to its first one).
   const [phaseByCategory, setPhaseByCategory] = useState({});
 
@@ -4582,32 +4624,36 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
   const category = PX360_CATEGORIES.find((c) => c.key === activeCategory);
   const phaseOf = (cat) => phaseByCategory[cat.key] ?? (cat.phases ? cat.phases[0].key : "all");
   const setPhaseOf = (catKey, key) => setPhaseByCategory((prev) => ({ ...prev, [catKey]: key }));
-  const typeFiltersOf = (cat) => recordTypeFilters[cat.key] ?? new Set();
+  const filtersOf = (cat) => recordFilters[cat.key] ?? {};
+  const filterCountOf = (cat) => Object.values(filtersOf(cat)).reduce((n, set) => n + set.size, 0);
 
   const activePhase = phaseOf(category);
   const setActivePhase = (key) => setPhaseOf(activeCategory, key);
-  const activeTypeFilters = typeFiltersOf(category);
-  const toggleRecordType = (key) => {
-    setRecordTypeFilters((prev) => {
-      const next = new Set(prev[activeCategory] ?? []);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return { ...prev, [activeCategory]: next };
+  const activeRecordFilters = filtersOf(category);
+  const activeRecordFilterCount = filterCountOf(category);
+  const toggleRecordFilter = (sectionKey, valueKey) => {
+    setRecordFilters((prev) => {
+      const cat = { ...(prev[activeCategory] ?? {}) };
+      const next = new Set(cat[sectionKey] ?? []);
+      next.has(valueKey) ? next.delete(valueKey) : next.add(valueKey);
+      cat[sectionKey] = next;
+      return { ...prev, [activeCategory]: cat };
     });
   };
-  const clearRecordTypes = () => setRecordTypeFilters((prev) => ({ ...prev, [activeCategory]: new Set() }));
+  const clearRecordFilters = () => setRecordFilters((prev) => ({ ...prev, [activeCategory]: {} }));
 
   // A record category's list: the page-level organisation/time dropdowns and
-  // the selected status pill, then the drawer's Type filter, then sort. Shared
+  // the selected status pill, then the drawer's sections, then sort. Shared
   // by the Detailed view (active category) and every Dashboard card, so both
   // always show the same records for the same pill.
   const orgNameAllowed = (name) => !sourceFilter || SOURCE_CONFIG.some((s) => s.name === name && sourceFilter.has(s.id));
   const recordListFor = (cat) => {
     const phase = phaseOf(cat);
-    const types = typeFiltersOf(cat);
+    const selected = filtersOf(cat);
     const inView = cat.entries.filter((item) => orgNameAllowed(item.source) && recordWithinTimeWindow(item, timeFilter));
     const inPhase = inView.filter((item) => phase === "all" || item.phase === phase);
     const displayed = inPhase
-      .filter((item) => types.size === 0 || types.has(simpleTypeKey(item)))
+      .filter((item) => (cat.filters ?? []).every((f) => !selected[f.key]?.size || selected[f.key].has(f.valueOf(item))))
       .sort((a, b) => (sortOrder === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date)));
     const phases = cat.phases
       ? cat.phases.map((p) => ({ ...p, count: inView.filter((item) => item.phase === p.key).length }))
@@ -5095,7 +5141,8 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
               phases={recordPhases}
               activePhase={activePhase}
               onPhaseChange={setActivePhase}
-              filterCount={activeTypeFilters.size}
+              filterCount={activeRecordFilterCount}
+              showFilters={!!category.filters}
               sortOrder={sortOrder}
               sortMenuOpen={sortMenuOpen}
               setSortMenuOpen={setSortMenuOpen}
@@ -5111,7 +5158,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
             {recordsInPhase.length > 0 && displayedRecords.length === 0 && (
               <div className="text-sm py-6 text-center border rounded-md" style={{ color: T.gray500, borderColor: T.border }}>
                 {t("No entries match the selected filters.")}{" "}
-                <button onClick={clearRecordTypes} className="underline font-semibold" style={{ color: T.primary }}>
+                <button onClick={clearRecordFilters} className="underline font-semibold" style={{ color: T.primary }}>
                   {t("Clear filters")}
                 </button>
               </div>
@@ -5216,16 +5263,31 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
               {category.entries && (
                 <>
                   <div className="flex-1 overflow-y-auto">
-                    <FilterAccordion title={t("Type")} open onToggle={() => {}}>
-                      {categoryFilterTypes(category, t).map((ft) => (
-                        <FilterCheckbox key={ft.key} label={ft.label} checked={activeTypeFilters.has(ft.key)} onChange={() => toggleRecordType(ft.key)} />
-                      ))}
-                    </FilterAccordion>
+                    {/* Status mirrors the pills above the list — one state, two ways to set it. */}
+                    {category.phases && (
+                      <FilterAccordion title={t("Status")} open onToggle={() => {}}>
+                        {recordPhases.map((p) => (
+                          <FilterCheckbox key={p.key} label={`${t(p.label, "px360Phase")} (${p.count})`} checked={activePhase === p.key} onChange={() => setActivePhase(p.key)} />
+                        ))}
+                      </FilterAccordion>
+                    )}
+                    {(category.filters ?? []).map((f) => (
+                      <FilterAccordion key={f.key} title={t(f.title)} open onToggle={() => {}}>
+                        {categoryFilterOptions(category, f, recordsInPhase, t).map((o) => (
+                          <FilterCheckbox
+                            key={o.key}
+                            label={`${o.label} (${o.count})`}
+                            checked={!!activeRecordFilters[f.key]?.has(o.key)}
+                            onChange={() => toggleRecordFilter(f.key, o.key)}
+                          />
+                        ))}
+                      </FilterAccordion>
+                    ))}
                   </div>
 
-                  {activeTypeFilters.size > 0 && (
+                  {activeRecordFilterCount > 0 && (
                     <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: T.border }}>
-                      <button onClick={clearRecordTypes} className="text-[14px] font-semibold" style={{ color: T.primary }}>
+                      <button onClick={clearRecordFilters} className="text-[14px] font-semibold" style={{ color: T.primary }}>
                         {t("Clear all filters")}
                       </button>
                     </div>
