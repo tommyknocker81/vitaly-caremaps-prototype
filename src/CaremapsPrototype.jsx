@@ -11,7 +11,7 @@ import {
   HelpCircle, MessageSquare, ShieldAlert, ClipboardCheck, FileSignature, FlaskConical,
   ShieldCheck, FileX, LayoutList, LoaderCircle, Pill, ClipboardPlus, BriefcaseMedical, Flag,
   Accessibility, HeartPulse, House, Users, Armchair, Syringe, IdCard, Wallet, Settings, Grip,
-  Scissors, Microscope, Droplets, Radiation, Cable,
+  Scissors, Microscope, Droplets, Radiation, Cable, Sparkles, SendHorizontal,
 } from "lucide-react";
 import vitalyLogo from "./assets/vitaly-logo.png";
 
@@ -1625,17 +1625,10 @@ function encounterTypeKey(item) {
   return FILTER_TYPES.find((t) => t.test(prefix))?.key ?? null;
 }
 
-// Which SOURCE_CONFIG source contributed a given item — used by the
-// "All organisations" global filter (looked up rather than stored on the
-// item, so the merge-on-arrival data shape doesn't need to change).
 // Every encounter on the server across all sources — the "Past (N)" pill count.
 // (All mock encounters are in the past.) Used to be a hardcoded 24 carried over
 // from the original prototype, which didn't match the 19 records actually here.
 const ENCOUNTER_TOTAL = SOURCE_CONFIG.reduce((sum, s) => sum + s.entries.length, 0);
-
-function sourceIdForItem(item) {
-  return SOURCE_CONFIG.find((s) => s.entries.some((e) => e.id === item.id))?.id;
-}
 
 const TIME_OPTIONS = [
   { key: "all", label: "All time" },
@@ -1645,7 +1638,7 @@ const TIME_OPTIONS = [
   { key: "5years", label: "Last 5 years" },
 ];
 
-// Start of the "All time" dropdown's window as "YYYY-MM-DD" (null = all time).
+// Start of a "Period" filter window as "YYYY-MM-DD" (null = all time).
 function timeWindowStart(timeFilter) {
   if (timeFilter === "all") return null;
   const days = { month: 31, "6months": 186, year: 366, "5years": 366 * 5 }[timeFilter];
@@ -1660,25 +1653,6 @@ function withinTimeWindow(item, timeFilter) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
   return new Date(item.sortDate) >= cutoff;
-}
-
-function orgFilterLabel(selected, t) {
-  if (selected.size === SOURCE_CONFIG.length) return t("All organisations");
-  if (selected.size === 0) return t("No organisations");
-  if (selected.size <= 2) return SOURCE_CONFIG.filter((s) => selected.has(s.id)).map((s) => s.name).join(", ");
-  return `${selected.size} ${t("organisations selected")}`;
-}
-
-// Shared close-on-outside-click behavior for the header dropdowns.
-function useClickOutside(ref, onOutside, active) {
-  useEffect(() => {
-    if (!active) return;
-    const onClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onOutside();
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [active, ref, onOutside]);
 }
 
 function formatClock(d) {
@@ -2130,7 +2104,7 @@ const PROCEDURE_ENTRIES = [
   {
     id: "proc1",
     kind: "implant",
-    date: "02/10/2026",
+    date: "22/10/2026",
     source: "Maastricht UMC+",
     label: "Indwelling pleural catheter placement | Right",
     phase: "planned",
@@ -2138,7 +2112,7 @@ const PROCEDURE_ENTRIES = [
       { label: "Indication", value: "Recurrent malignant pleural effusion" },
       { label: "Laterality", value: "Right" },
       { label: "Performed by", value: "Dr. S. Janssen (Pulmonologist)" },
-      { label: "Date", value: "02/10/2026" },
+      { label: "Date", value: "22/10/2026" },
     ],
   },
   {
@@ -2739,26 +2713,30 @@ const procedureGroupFilter = {
   labelOf: (item, t) => t(PROCEDURE_KINDS[item.kind].label),
 };
 
+// `period: true` adds a "Period" section (by record date) to the Filters
+// drawer. Left out on purpose: allergies, alerts and treatment restrictions
+// (safety facts that must never drop out of view by age) and the
+// administrative categories (providers, contacts, demographics, payer).
 // The left rail, in display order. `phases` drives the status pills above
 // each list (omitted = a single static "All (N)" pill, for categories where
 // no BgZ status split applies). Encounters has no `entries` — it's rendered by
 // its own paginated merge-on-arrival branch in EncountersSection.
 const PX360_CATEGORIES = [
-  { key: "encounters", label: "Encounters", icon: CalendarDays, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }] },
-  { key: "diagnoses", label: "Complaints and diagnoses", icon: Stethoscope, entries: DIAGNOSIS_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Type"), detailFilter("Verification status")] },
+  { key: "encounters", label: "Encounters", icon: CalendarDays, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }], period: true },
+  { key: "diagnoses", label: "Complaints and diagnoses", icon: Stethoscope, entries: DIAGNOSIS_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Type"), detailFilter("Verification status")], period: true },
   { key: "treatment", label: "Treatment restrictions", icon: ClipboardList, entries: RESTRICTION_ENTRIES, phases: [{ key: "current", label: "Current" }, { key: "previous", label: "Previous" }] },
-  { key: "allergies", label: "Allergies", icon: ShieldAlert, entries: ALLERGY_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Category"), detailFilter("Criticality"), detailFilter("Severity"), detailFilter("Verification status")] },
-  { key: "medication", label: "Medication", icon: Pill, entries: MEDICATION_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "stopped", label: "Stopped" }], filters: [typeFilter("Drug class"), detailFilter("Route"), detailFilter("Prescriber")] },
-  { key: "procedures", label: "Procedures", icon: ClipboardPlus, entries: PROCEDURE_ENTRIES, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }], filters: [procedureGroupFilter, detailFilter("Performed by")] },
-  { key: "lab", label: "Laboratory results", icon: FlaskConical, entries: LAB_ENTRIES, filters: [typeFilter("Test"), detailFilter("Interpretation", "Normal")] },
+  { key: "allergies", label: "Allergies", icon: ShieldAlert, entries: ALLERGY_ENTRIES, sorts: ["severity", "newest", "oldest"], phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Category"), detailFilter("Criticality"), detailFilter("Severity"), detailFilter("Verification status")] },
+  { key: "medication", label: "Medication", icon: Pill, entries: MEDICATION_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "stopped", label: "Stopped" }], filters: [typeFilter("Drug class"), detailFilter("Route"), detailFilter("Prescriber")], period: true },
+  { key: "procedures", label: "Procedures", icon: ClipboardPlus, entries: PROCEDURE_ENTRIES, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }], filters: [procedureGroupFilter, detailFilter("Performed by")], period: true },
+  { key: "lab", label: "Laboratory results", icon: FlaskConical, entries: LAB_ENTRIES, filters: [typeFilter("Test"), detailFilter("Interpretation", "Normal")], period: true },
   { key: "providers", label: "Healthcare providers", icon: BriefcaseMedical, entries: PROVIDER_ENTRIES, filters: [detailFilter("Role")] },
   { key: "alerts", label: "Alerts", icon: Flag, entries: ALERT_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Type")] },
-  { key: "functional", label: "Functional status", icon: Accessibility, entries: FUNCTIONAL_ENTRIES, filters: [typeFilter("Type")] },
-  { key: "vitals", label: "Vital signs", icon: HeartPulse, entries: VITALS_ENTRIES, filters: [typeFilter("Type")] },
-  { key: "social", label: "Social history", icon: House, entries: SOCIAL_ENTRIES, filters: [typeFilter("Type")] },
+  { key: "functional", label: "Functional status", icon: Accessibility, entries: FUNCTIONAL_ENTRIES, filters: [typeFilter("Type")], period: true },
+  { key: "vitals", label: "Vital signs", icon: HeartPulse, entries: VITALS_ENTRIES, filters: [typeFilter("Type")], period: true },
+  { key: "social", label: "Social history", icon: House, entries: SOCIAL_ENTRIES, filters: [typeFilter("Type")], period: true },
   { key: "contacts", label: "Contact persons", icon: Users, entries: CONTACT_PERSON_ENTRIES, filters: [detailFilter("Relationship"), detailFilter("Role")] },
-  { key: "devices", label: "Medical devices", icon: Armchair, entries: DEVICE_ENTRIES, filters: [typeFilter("Type")] },
-  { key: "vaccinations", label: "Vaccinations", icon: Syringe, entries: VACCINATION_ENTRIES, filters: [typeFilter("Type")] },
+  { key: "devices", label: "Medical devices", icon: Armchair, entries: DEVICE_ENTRIES, filters: [typeFilter("Type")], period: true },
+  { key: "vaccinations", label: "Vaccinations", icon: Syringe, entries: VACCINATION_ENTRIES, filters: [typeFilter("Type")], period: true },
   { key: "demographics", label: "Demographics and identification", icon: IdCard, entries: DEMOGRAPHICS_ENTRIES },
   { key: "financial", label: "Financial information", icon: Wallet, entries: FINANCIAL_ENTRIES },
 ];
@@ -2875,6 +2853,23 @@ function countByOrg(entries, orgName) {
 
 // Allergy severity as the Figma dashboard draws it: three dots, filled
 // red/orange/blue for high/moderate/low.
+// Red alert mark after a category's name and count when it holds a critical
+// record (`tone: "danger"`, e.g. a severe allergy or a do-not-resuscitate
+// restriction) in its current status — visible while the card is collapsed.
+function CriticalMark() {
+  const { t } = useLanguage();
+  return (
+    <svg width="20" height="18" viewBox="0 0 20 18" className="inline-block shrink-0 align-[-2px]" role="img" aria-label={t("Contains critical information")}>
+      <title>{t("Contains critical information")}</title>
+      <path d="M8.27 1.5a2 2 0 0 1 3.46 0l7.6 13A2 2 0 0 1 17.6 17.5H2.4A2 2 0 0 1 .67 14.5z" fill="#C74139" />
+      <rect x="9" y="5.5" width="2" height="6.5" rx="1" fill="#fff" />
+      <circle cx="10" cy="14.4" r="1.15" fill="#fff" />
+    </svg>
+  );
+}
+
+const SEVERITY_RANK = { high: 3, moderate: 2, low: 1 };
+
 function SeverityDots({ severity }) {
   const filled = { high: 3, moderate: 2, low: 1 }[severity] || 0;
   const color = { high: T.danger, moderate: T.warning, low: T.primary }[severity];
@@ -3148,6 +3143,17 @@ Object.assign(NL, {
   "Sodium | 139 mmol/L": "Natrium | 139 mmol/L",
   "Potassium | 4.3 mmol/L": "Kalium | 4.3 mmol/L",
   "Normal": "Normaal",
+  "Not every source loaded": "Niet alle bronnen geladen",
+  "Contains critical information": "Bevat kritieke informatie",
+  "AI summary": "AI-samenvatting",
+  "Period": "Periode",
+  "Generating summary\u2026": "Samenvatting wordt gemaakt\u2026",
+  "For": "Voor",
+  "Related questions": "Gerelateerde vragen",
+  "Enter your own question or prompt": "Stel je eigen vraag",
+  "Based on the BgZ records from 4 of 5 sources (MUMC+ returned no data) and the advance care plan (PZP). AI-generated: check the linked source records before acting on it.": "Gebaseerd op de BgZ-gegevens van 4 van 5 bronnen (MUMC+ leverde geen gegevens) en het proactieve zorgplan (PZP). Door AI gemaakt: controleer de gekoppelde brongegevens voordat je ernaar handelt.",
+  "In this prototype only the suggested questions have answers. In the product, your question would be answered from the same records, with links to the sources.": "In dit prototype hebben alleen de voorgestelde vragen een antwoord. In het product wordt je vraag beantwoord vanuit dezelfde gegevens, met links naar de bronnen.",
+  "Most severe first": "Ernstigste eerst",
   "Category": "Categorie",
   "Drug class": "Geneesmiddelgroep",
   "Procedure group": "Verrichtingsgroep",
@@ -3269,28 +3275,34 @@ Object.assign(NL, {
   "Palliative-terminal care indication requested from the CIZ.": "Indicatie palliatief-terminale zorg aangevraagd bij het CIZ.",
 });
 
-// The left-rail live indicator (n/5 counting up, then a check) — shared by
-// all three category rows since they're all populated by the same
-// underlying 5-source fetch (see SourcesHeader below): once that fetch
-// settles, it settles for Encounters/Diagnoses/Treatment simultaneously.
-// No source can fail (see SOURCE_CONFIG), so this only ever ends in the
-// settled/"done" state, never a warning icon.
+// The left-rail live indicator: n/5 counting up while sources load, then
+// nothing once everything arrived (a check on every row was clutter). A
+// warning icon stays only if a source didn't load, so the row asks for
+// attention. All rows share the same underlying 5-source fetch (see
+// SourcesHeader below), so they settle together. No mock source fails today
+// (see SOURCE_CONFIG), so the warning state isn't reachable in the demo yet.
 function SourceCountIndicator({ loadedCount, allSettled, isActive }) {
+  const { t } = useLanguage();
+  const failed = allSettled && loadedCount < SOURCE_CONFIG.length;
+  const key = !allSettled ? `n${loadedCount}` : failed ? "failed" : "done";
   return (
-    <span className="relative block w-[32px] h-[18px] shrink-0">
+    // Takes no room once everything loaded, so long names get the space.
+    <span className={`relative block h-[18px] shrink-0 ${key === "done" ? "w-0 -ml-2.5" : "w-[32px]"}`}>
       <AnimatePresence initial={false}>
-        <motion.span
-          key={!allSettled ? `n${loadedCount}` : "done"}
-          className="absolute inset-0 flex items-center justify-end"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.18 }}
-        >
-          {!allSettled
-            ? <span className="text-[13px] font-semibold tabular-nums">{loadedCount}/{SOURCE_CONFIG.length}</span>
-            : <Check size={15} strokeWidth={3} />}
-        </motion.span>
+        {key !== "done" && (
+          <motion.span
+            key={key}
+            className="absolute inset-0 flex items-center justify-end"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+          >
+            {failed
+              ? <AlertTriangle size={16} strokeWidth={2.5} style={{ color: isActive ? "#fff" : T.danger }} aria-label={t("Not every source loaded")} />
+              : <span className="text-[13px] font-semibold tabular-nums">{loadedCount}/{SOURCE_CONFIG.length}</span>}
+          </motion.span>
+        )}
       </AnimatePresence>
     </span>
   );
@@ -3429,7 +3441,9 @@ function SourcesHeader({ title, sourcesOpen, setSourcesOpen, sourceStatus, loade
 // exclusive), so `sortMenuOpen`/`sortOrder` and the filter drawer they open
 // are safely shared EncountersSection state rather than duplicated per
 // category. `phases` is [{ key, label, count }]; the pills filter the list.
-function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, showFilters = true, sortOrder, sortMenuOpen, setSortMenuOpen, sortMenuRef, changeSortOrder, onOpenFilters }) {
+const SORT_LABELS = { newest: "Newest first", oldest: "Oldest first", severity: "Most severe first" };
+
+function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, showFilters = true, sortOptions = ["newest", "oldest"], sortOrder, sortMenuOpen, setSortMenuOpen, sortMenuRef, changeSortOrder, onOpenFilters }) {
   const { t } = useLanguage();
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
@@ -3451,7 +3465,7 @@ function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, show
       <div className="flex items-center gap-4 text-sm" style={{ color: T.primary }}>
         <div className="relative" ref={sortMenuRef}>
           <button onClick={() => setSortMenuOpen((v) => !v)} className="flex items-center gap-1 whitespace-nowrap">
-            <ArrowUpDown size={14} /> {t("Sort:")} {sortOrder === "oldest" ? t("Oldest first") : t("Newest first")}
+            <ArrowUpDown size={14} /> {t("Sort:")} {t(SORT_LABELS[sortOrder])}
           </button>
           <AnimatePresence>
             {sortMenuOpen && (
@@ -3463,14 +3477,14 @@ function CategoryToolbar({ phases, activePhase, onPhaseChange, filterCount, show
                 className="absolute left-0 top-full mt-2 w-44 rounded-md border bg-white shadow-lg overflow-hidden z-20"
                 style={{ borderColor: T.border }}
               >
-                {["newest", "oldest"].map((o) => (
+                {sortOptions.map((o) => (
                   <button
                     key={o}
                     onClick={() => changeSortOrder(o)}
                     className="w-full text-left px-4 py-2.5 text-[14px]"
                     style={{ color: T.bodyText, backgroundColor: sortOrder === o ? T.light : "#fff" }}
                   >
-                    {o === "oldest" ? t("Oldest first") : t("Newest first")}
+                    {t(SORT_LABELS[o])}
                   </button>
                 ))}
               </motion.div>
@@ -3645,7 +3659,7 @@ function TreatmentRestrictionBanner({ entry, onOpen }) {
 // severity, source on the right, then the label and an expand chevron. Rows
 // are divided by a rule rather than boxed like the Detailed view's cards.
 function DashboardRow({ date, source, label, tone, severity, isExpanded, onToggle, isLast, children }) {
-  const color = tone === "danger" ? "#C74139" : T.bodyText;
+  const color = tone === "danger" ? "#C74139" : T.primary;
   return (
     <div className={isLast ? "" : "border-b"} style={{ borderColor: T.border }}>
       <button onClick={onToggle} className="w-full text-left py-2">
@@ -3685,7 +3699,7 @@ function DashboardRow({ date, source, label, tone, severity, isExpanded, onToggl
 // header that collapses the card, the category's status pills, and its most
 // recent records. (The Figma card's "Filter" link was removed on request —
 // filtering lives in the Detailed view.)
-function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed, onToggleCollapsed, onShowAll, totalCount, loading, children }) {
+function DashboardCard({ category, count, critical, phases, activePhase, onPhaseChange, collapsed, onToggleCollapsed, onShowAll, totalCount, loading, children }) {
   const { t } = useLanguage();
   const Icon = category.icon;
   return (
@@ -3697,7 +3711,10 @@ function DashboardCard({ category, phases, activePhase, onPhaseChange, collapsed
       >
         <span className="flex items-center gap-2">
           <Icon size={22} style={{ color: T.primary }} />
-          <span className="text-[16px] font-bold uppercase tracking-[1px] leading-[1.2]" style={{ color: T.primary }}>{t(category.label)}</span>
+          <span className="text-[16px] font-bold uppercase tracking-[1px] leading-[1.2]" style={{ color: T.bodyText }}>
+            {t(category.label)} (<span style={{ color: T.primary }}>{count}</span>)
+          </span>
+          {critical && <CriticalMark />}
         </span>
         <motion.span animate={{ rotate: collapsed ? 0 : 180 }} transition={{ duration: 0.2, ease: "easeInOut" }}>
           <ChevronDown size={22} style={{ color: T.primary }} />
@@ -3996,7 +4013,22 @@ function RecordHoverCard({ mark, x, y }) {
 // a count, and clicking one opens a preview of just those encounters. Periods
 // not fully loaded yet are hatched in the Encounters lane (click to load
 // older pages).
-function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpenRecord, onOpenCategory, onLoadOlder, onOpenEncounters, defaultRange = "1y" }) {
+// Opens the AI summary drawer. On the Dashboard it ends the timeline's header
+// row; in Detailed information (no timeline) it has a row of its own.
+function AiSummaryButton({ onClick }) {
+  const { t } = useLanguage();
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-[4px] border px-3 py-[7px] text-[14px] leading-[1.5] bg-white hover:bg-black/[0.02] whitespace-nowrap"
+      style={{ color: T.primary, borderColor: T.primary }}
+    >
+      <Sparkles size={16} /> {t("AI summary")}
+    </button>
+  );
+}
+
+function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpenRecord, onOpenCategory, onLoadOlder, onOpenEncounters, onOpenSummary, defaultRange = "1y" }) {
   const { t, lang } = useLanguage();
   // Stable for the component's life, so "is the window still at today?" is a
   // plain comparison rather than racing the clock.
@@ -4194,25 +4226,30 @@ function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpen
     <div className="mb-6">
       {hover && <RecordHoverCard mark={hover.mark} x={hover.x} y={hover.y} />}
       {/* Period title · range · navigation */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center mb-6">
-        <div>
-          <h3 className="text-[22px] font-semibold leading-[1.2]" style={{ color: T.black }}>{title}</h3>
-          {subtitle && <div className="text-[13px] mt-1" style={{ color: T.gray600 }}>{subtitle}</div>}
+      {/* Figma order: selected period + its navigation, the range toggles in
+          the middle, then the AI summary button on the right. */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 mb-6">
+        <div className="flex items-center gap-6 min-w-0">
+          <div className="min-w-0">
+            <h3 className="text-[22px] font-semibold leading-[1.2] whitespace-nowrap" style={{ color: T.black }}>{title}</h3>
+            {subtitle && <div className="text-[13px] mt-1 whitespace-nowrap" style={{ color: T.gray600 }}>{subtitle}</div>}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => stepPeriod(-1)} aria-label={t("Previous period")} className={`${navBtn} w-[30px]`} style={{ borderColor: T.border }}>
+              <ChevronLeft size={15} style={{ color: T.bodyText }} />
+            </button>
+            <button onClick={() => goTo(anchoredStart(range))} className={`${navBtn} px-4`} style={{ borderColor: T.border, color: T.bodyText }}>{t("Today")}</button>
+            <button onClick={() => stepPeriod(1)} aria-label={t("Next period")} className={`${navBtn} w-[30px]`} style={{ borderColor: T.border }}>
+              <ChevronRight size={15} style={{ color: T.bodyText }} />
+            </button>
+          </div>
         </div>
         <Segmented
           options={TIMELINE_RANGES.map((r) => ({ key: r.key, label: r.label }))}
           value={rangeKey}
           onChange={changeRange}
         />
-        <div className="flex items-center justify-end gap-2">
-          <button onClick={() => stepPeriod(-1)} aria-label={t("Previous period")} className={`${navBtn} w-[30px]`} style={{ borderColor: T.border }}>
-            <ChevronLeft size={15} style={{ color: T.bodyText }} />
-          </button>
-          <button onClick={() => goTo(anchoredStart(range))} className={`${navBtn} w-[136px]`} style={{ borderColor: T.border, color: T.bodyText }}>{t("Today")}</button>
-          <button onClick={() => stepPeriod(1)} aria-label={t("Next period")} className={`${navBtn} w-[33px]`} style={{ borderColor: T.border }}>
-            <ChevronRight size={15} style={{ color: T.bodyText }} />
-          </button>
-        </div>
+        <div className="flex justify-end">{onOpenSummary && <AiSummaryButton onClick={onOpenSummary} />}</div>
       </div>
 
       <div className="grid grid-cols-[160px_1fr]">
@@ -4421,7 +4458,474 @@ function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpen
   );
 }
 
-function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewChange, layout, railLayout, timelineDefaultRange }) {
+/* ================= PX360 AI summary ================= */
+
+// The AI summary drawer's content, written in advance for the prototype (no
+// model call). One version per persona role: same patient, same records, but
+// ordered and selected for what that role needs. It repeats what's in the
+// records and the PZP and never adds advice. Each item is a list of segments:
+// plain strings, or src(text, category, recordId) — a link that opens that
+// record in Detailed information, so every statement can be checked.
+// Items marked (PZP) come from the advance care plan tab, not a BgZ record.
+// The content is English only for now; the drawer's own labels are translated.
+const src = (text, cat, id) => ({ text, cat, id });
+
+const AI_SUMMARY_SAFETY_CORE = [
+  [src("Not for resuscitation", "treatment", "r2"), ", agreed with patient and GP on 12/08/2026. Replaces the 2023 decision “yes, with limitations”."],
+  ["Severe allergies: ", src("penicillin", "allergies", "alg1"), " (urticaria, facial swelling) and ", src("peanuts", "allergies", "alg5"), " (anaphylaxis). Also ", src("codeine", "allergies", "alg3"), " intolerance, ", src("iodinated contrast", "allergies", "alg2"), " and ", src("latex", "allergies", "alg7"), "."],
+];
+
+const AI_SUMMARIES = {
+  GP: {
+    lastView: "12/08/2026",
+    headline: [
+      "Jan de Vries, 73, ", src("metastatic non-small-cell lung cancer", "diagnoses", "d1"), " with ", src("moderate COPD", "diagnoses", "d2"),
+      ". Palliative phase since 12/08/2026, cared for at home. Function has declined clearly over the past two months.",
+    ],
+    sections: [
+      {
+        title: "Safety",
+        critical: true,
+        items: [
+          ...AI_SUMMARY_SAFETY_CORE,
+          [src("Reduced renal function", "alerts", "alr2"), ": ", src("eGFR 52", "lab", "lab2"), " on 10/09/2026; the alert asks to review opioid dosing."],
+          [src("Home oxygen", "alerts", "alr1"), ": no open flames or smoking. ", src("Increased fall risk", "alerts", "alr3"), "."],
+        ],
+      },
+      {
+        title: "Since your last view",
+        since: true,
+        items: [
+          [src("Palliative radiotherapy", "procedures", "proc2"), " for a bone metastasis in the left hip, 03–10/09/2026."],
+          ["Performance status dropped to ", src("WHO 3", "functional", "fun1"), "; now ", src("needs help washing and dressing", "functional", "fun3"), ", home care twice daily."],
+          [src("Haemoglobin 7.1 mmol/L", "lab", "lab1"), " (low) and ", src("eGFR 52", "lab", "lab2"), ", both 10/09/2026."],
+          [src("Hospital bed", "devices", "dev2"), " delivered; dietitian advised an ", src("energy- and protein-rich diet", "social", "soc5"), "."],
+          [src("Long-term care (Wlz) indication", "financial", "fin3"), " requested from the CIZ."],
+        ],
+      },
+      {
+        title: "Current situation",
+        items: [
+          ["Recurrent malignant pleural effusion on the right; ", src("pleural puncture", "procedures", "proc3"), " in 08/2025."],
+          ["Breathlessness ", src("MRC grade 4", "functional", "fun4"), "; ", src("oxygen saturation 91%", "vitals", "vit2"), ", ", src("oxygen 2 L/min", "devices", "dev1"), " on exertion and at night."],
+          [src("Albumin 31 g/L", "lab", "lab4"), " (low, 03/2026); ", src("weight 71 kg", "vitals", "vit4"), "."],
+        ],
+      },
+      {
+        title: "Medication",
+        items: [
+          [src("Morphine oral solution", "medication", "med1"), " as needed for breathlessness and pain."],
+          [src("Midazolam subcutaneous", "medication", "med2"), " as needed; rescue kit at home."],
+          [src("Tiotropium/olodaterol inhaler", "medication", "med3"), " once daily."],
+        ],
+      },
+      {
+        title: "Upcoming and open",
+        items: [
+          [src("Indwelling pleural catheter placement", "procedures", "proc1"), " planned 22/10/2026."],
+          [src("No legal representative appointed", "contacts", "cp3"), "; full decision-making capacity at present. Advance directive and euthanasia declaration on file (PZP)."],
+          ["Advance care plan to be reviewed monthly; preferred place of death is home, hospice as fallback (PZP)."],
+        ],
+      },
+      {
+        title: "Care team and contacts",
+        items: [
+          ["Wife ", src("Petra de Vries", "contacts", "cp1"), " (first contact, informal representative), daughter ", src("Anne de Vries", "contacts", "cp2"), "."],
+          ["Community nurse ", src("Mary Brown", "providers", "hcp2"), ", oncologist ", src("Dr. E. Carter", "providers", "hcp3"), ", pulmonologist ", src("Dr. S. Janssen", "providers", "hcp4"), "."],
+        ],
+      },
+    ],
+    questions: [
+      {
+        q: "What changed in the last 4 weeks?",
+        a: [
+          [src("Palliative radiotherapy", "procedures", "proc2"), " of the left hip was completed on 10/09/2026."],
+          ["Blood tests on 10/09/2026: ", src("haemoglobin 7.1 mmol/L", "lab", "lab1"), " (low) and ", src("eGFR 52", "lab", "lab2"), ", which raised the ", src("reduced renal function", "alerts", "alr2"), " alert."],
+          [src("Mobility", "functional", "fun2"), " was updated the same day: rollator indoors, wheelchair outdoors."],
+          [src("Pleural catheter placement", "procedures", "proc1"), " was planned for 22/10/2026."],
+        ],
+      },
+      {
+        q: "Which medication needs attention given the kidney function?",
+        a: [
+          ["The ", src("alert of 10/09/2026", "alerts", "alr2"), " asks to review opioid dosing at ", src("eGFR 52", "lab", "lab2"), ". The only opioid on the list is ", src("morphine oral solution", "medication", "med1"), "."],
+          ["The records don't flag ", src("midazolam", "medication", "med2"), " or the ", src("inhaler", "medication", "med3"), "."],
+          ["This summary repeats what's recorded. The dosing decision is yours."],
+        ],
+      },
+      {
+        q: "What has been agreed about end-of-life care?",
+        a: [
+          [src("Not for resuscitation", "treatment", "r2"), " (12/08/2026)."],
+          ["Hospital admission only for a symptom crisis that can't be managed at home. Artificial nutrition and hydration declined; oral antibiotics acceptable for comfort, IV antibiotics declined (PZP)."],
+          ["Euthanasia declaration on file, no active request. Preferred place of death is home, hospice as fallback (PZP)."],
+        ],
+      },
+    ],
+  },
+
+  "Community Nurse": {
+    lastView: "01/09/2026",
+    headline: [
+      "Jan de Vries, 73, palliative phase (", src("lung cancer", "diagnoses", "d1"), " with ", src("moderate COPD", "diagnoses", "d2"),
+      "), ", src("at home with his wife", "social", "soc1"), ". Needs help with personal care. Wishes to stay at home and avoid hospital admission.",
+    ],
+    sections: [
+      {
+        title: "Safety at home",
+        critical: true,
+        items: [
+          ...AI_SUMMARY_SAFETY_CORE,
+          [src("Home oxygen", "alerts", "alr1"), ": no open flames or smoking in the house. ", src("Concentrator", "devices", "dev1"), " at 2 L/min on exertion and at night."],
+          [src("Increased fall risk", "alerts", "alr3"), ": ", src("rollator", "devices", "dev3"), " indoors, ", src("wheelchair outdoors", "functional", "fun2"), "."],
+        ],
+      },
+      {
+        title: "Since your last visit",
+        since: true,
+        items: [
+          [src("Radiotherapy", "procedures", "proc2"), " of the left hip completed on 10/09/2026."],
+          ["Performance status ", src("WHO 3", "functional", "fun1"), ": in bed or chair more than half of the day."],
+          [src("Haemoglobin 7.1 mmol/L", "lab", "lab1"), " (low); ", src("eGFR 52", "lab", "lab2"), " raised an alert to ", src("review opioid dosing", "alerts", "alr2"), "."],
+          ["Dietitian advice: ", src("energy- and protein-rich diet", "social", "soc5"), ", small frequent meals and sip feeds."],
+        ],
+      },
+      {
+        title: "Care needs",
+        items: [
+          [src("Help with washing and dressing", "functional", "fun3"), "; home care visits twice daily."],
+          [src("Hospital bed", "devices", "dev2"), "; bedroom moved to the ground floor."],
+          [src("Albumin 31 g/L", "lab", "lab4"), " (low); ", src("weight 71 kg", "vitals", "vit4"), "."],
+        ],
+      },
+      {
+        title: "Symptoms and rescue medication",
+        items: [
+          ["His main concerns are uncontrolled breathlessness or pain, and becoming a burden on his family (PZP)."],
+          [src("Morphine oral solution", "medication", "med1"), " as needed, max 6× per day; ", src("midazolam subcutaneous", "medication", "med2"), " rescue kit stored at home."],
+          ["GP out-of-hours service and the regional palliative advice line are briefed (PZP)."],
+        ],
+      },
+      {
+        title: "Coming up",
+        items: [
+          [src("Indwelling pleural catheter placement", "procedures", "proc1"), " planned 22/10/2026."],
+          [src("Long-term care (Wlz) indication", "financial", "fin3"), " requested."],
+        ],
+      },
+      {
+        title: "Contacts",
+        items: [
+          ["Wife ", src("Petra de Vries", "contacts", "cp1"), " (first contact), daughter ", src("Anne de Vries", "contacts", "cp2"), "; both give informal care."],
+          ["GP ", src("Dr. M. Henley", "providers", "hcp1"), " (main practitioner)."],
+        ],
+      },
+    ],
+    questions: [
+      {
+        q: "What should I look out for during home visits?",
+        a: [
+          ["Expected scenarios in the advance care plan: worsening breathlessness, a respiratory infection, reduced mobility, increasing dependency, and no longer being safe at home (PZP)."],
+          ["Recent values for comparison: ", src("oxygen saturation 91%", "vitals", "vit2"), ", ", src("heart rate 92", "vitals", "vit3"), ", ", src("weight 71 kg", "vitals", "vit4"), " (10/09/2026)."],
+        ],
+      },
+      {
+        q: "What is in the rescue kit at home?",
+        a: [
+          [src("Morphine oral solution 5 mg/ml", "medication", "med1"), ": 2.5–5 mg as needed, max 6× per day, for breathlessness and pain."],
+          [src("Midazolam 5 mg/ml", "medication", "med2"), ": 2.5–5 mg subcutaneous as needed, for anxiety or terminal restlessness."],
+          ["Both prescribed by the GP on 12/08/2026."],
+        ],
+      },
+      {
+        q: "What has been agreed about end-of-life care?",
+        a: [
+          [src("Not for resuscitation", "treatment", "r2"), " (12/08/2026)."],
+          ["Hospital admission only for a symptom crisis that can't be managed at home. Artificial nutrition and hydration declined (PZP)."],
+          ["Preferred place of death is home, hospice as fallback (PZP)."],
+        ],
+      },
+    ],
+  },
+
+  Physiotherapist: {
+    lastView: "15/07/2026",
+    headline: [
+      "Jan de Vries, 73, ", src("metastatic lung cancer", "diagnoses", "d1"), " with ", src("moderate COPD", "diagnoses", "d2"),
+      ", palliative phase since 12/08/2026. Mobility and exercise tolerance have declined.",
+    ],
+    sections: [
+      {
+        title: "Precautions",
+        critical: true,
+        items: [
+          ["Bone metastasis in the left hip, ", src("irradiated", "procedures", "proc2"), " 03–10/09/2026."],
+          ["Breathlessness ", src("MRC grade 4", "functional", "fun4"), "; ", src("oxygen saturation 91%", "vitals", "vit2"), "; ", src("oxygen", "devices", "dev1"), " on exertion."],
+          [src("Haemoglobin 7.1 mmol/L", "lab", "lab1"), " (low); ", src("heart rate 92", "vitals", "vit3"), " at rest."],
+          [src("Increased fall risk", "alerts", "alr3"), ". ", src("Latex allergy", "allergies", "alg7"), " (contact dermatitis)."],
+          [src("Not for resuscitation", "treatment", "r2"), " (12/08/2026)."],
+        ],
+      },
+      {
+        title: "Since your last view",
+        since: true,
+        items: [
+          ["Palliative phase marked on 12/08/2026; resuscitation decision changed to ", src("not for resuscitation", "treatment", "r2"), "."],
+          [src("Radiotherapy", "procedures", "proc2"), " of the left hip, 03–10/09/2026."],
+          ["Performance status ", src("WHO 3", "functional", "fun1"), "; ", src("needs help washing and dressing", "functional", "fun3"), "."],
+          [src("Wheelchair outdoors", "functional", "fun2"), ", rollator for short distances indoors; ", src("hospital bed", "devices", "dev2"), " since 01/09/2026."],
+        ],
+      },
+      {
+        title: "Function and aids",
+        items: [
+          [src("Mobility", "functional", "fun2"), ": walks indoors with a rollator, wheelchair outdoors."],
+          ["Aids: ", src("rollator", "devices", "dev3"), ", ", src("hospital bed", "devices", "dev2"), ", ", src("oxygen concentrator", "devices", "dev1"), "."],
+        ],
+      },
+      {
+        title: "What matters to him",
+        items: [
+          ["Staying at home with his wife and remaining as independent as possible (PZP)."],
+          ["Enjoys short walks in the garden. Worries about becoming a burden and about uncontrolled breathlessness (PZP)."],
+        ],
+      },
+      {
+        title: "Care team",
+        items: [
+          ["GP ", src("Dr. M. Henley", "providers", "hcp1"), ", community nurse ", src("Mary Brown", "providers", "hcp2"), " (home care twice daily), wife ", src("Petra de Vries", "contacts", "cp1"), "."],
+        ],
+      },
+    ],
+    questions: [
+      {
+        q: "What limits his exercise tolerance?",
+        a: [
+          ["Recorded factors: breathlessness ", src("MRC grade 4", "functional", "fun4"), ", ", src("oxygen saturation 91%", "vitals", "vit2"), ", ", src("haemoglobin 7.1 mmol/L", "lab", "lab1"), " and performance status ", src("WHO 3", "functional", "fun1"), "."],
+          ["The left hip carries a bone metastasis, ", src("irradiated", "procedures", "proc2"), " in September."],
+        ],
+      },
+      {
+        q: "What are his own goals?",
+        a: [
+          ["Staying at home with his wife, remaining as independent as possible and avoiding hospital admission. He enjoys reading, watching football and short walks in the garden (PZP)."],
+        ],
+      },
+      {
+        q: "Who else is involved in his care?",
+        a: [
+          ["GP ", src("Dr. M. Henley", "providers", "hcp1"), " (main practitioner), community nurse ", src("Mary Brown", "providers", "hcp2"), ", oncologist ", src("Dr. E. Carter", "providers", "hcp3"), " and pulmonologist ", src("Dr. S. Janssen", "providers", "hcp4"), "."],
+          ["Informal care from his wife ", src("Petra", "contacts", "cp1"), " and daughter ", src("Anne", "contacts", "cp2"), "."],
+        ],
+      },
+    ],
+  },
+};
+
+function AiSummaryText({ segments, onOpenRecord }) {
+  return segments.map((seg, i) =>
+    typeof seg === "string" ? (
+      <Fragment key={i}>{seg}</Fragment>
+    ) : (
+      // A link rather than a button, so a long source phrase wraps like text.
+      <a
+        key={i}
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          onOpenRecord(seg.cat, seg.id);
+        }}
+        className="font-semibold underline decoration-1 underline-offset-2 hover:decoration-2"
+        style={{ color: T.primary, textDecorationColor: "rgba(0,128,163,0.35)" }}
+      >
+        {seg.text}
+      </a>
+    )
+  );
+}
+
+// Right-hand drawer (Figma AI summary frame): the persona's summary, then
+// suggested questions with written-in-advance answers, and a prompt box. No
+// backdrop, so the page stays usable — clicking a source link opens the record
+// in Detailed information next to the open drawer.
+function AiSummaryDrawer({ open, onClose, persona, onOpenRecord }) {
+  const { t } = useLanguage();
+  const summary = AI_SUMMARIES[persona?.role] ?? AI_SUMMARIES.GP;
+  const [generating, setGenerating] = useState(true);
+  const [generatedAt, setGeneratedAt] = useState(null);
+  const [thread, setThread] = useState([]);
+  const [prompt, setPrompt] = useState("");
+  const scrollRef = useRef(null);
+
+  // "Generate" on every open and for every persona — a short pause, so the
+  // demo reads as a summary built for this viewer at this moment.
+  useEffect(() => {
+    if (!open) return;
+    setGenerating(true);
+    setThread([]);
+    const id = setTimeout(() => {
+      setGenerating(false);
+      setGeneratedAt(new Date());
+    }, 1400);
+    return () => clearTimeout(id);
+  }, [open, persona?.role]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (thread.length && scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [thread.length]);
+
+  const ask = (q, a) => setThread((prev) => [...prev, { q, a }]);
+  const submitPrompt = () => {
+    const q = prompt.trim();
+    if (!q) return;
+    ask(q, [[t("In this prototype only the suggested questions have answers. In the product, your question would be answered from the same records, with links to the sources.")]]);
+    setPrompt("");
+  };
+  const asked = new Set(thread.map((m) => m.q));
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.aside
+          key="ai-summary"
+          className="fixed top-0 right-0 h-full w-[420px] max-w-[92vw] bg-white z-40 shadow-2xl flex flex-col border-l"
+          style={{ borderColor: T.border }}
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", stiffness: 380, damping: 38 }}
+          aria-label={t("AI summary")}
+        >
+          <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
+            <span className="flex items-center gap-2 text-[14px] font-bold uppercase tracking-[1px]" style={{ color: T.bodyText }}>
+              <Sparkles size={20} style={{ color: T.primary }} /> {t("AI summary")}
+            </span>
+            <button onClick={onClose} aria-label={t("Close")}>
+              <X size={22} style={{ color: T.bodyText }} />
+            </button>
+          </div>
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-6">
+            {generating ? (
+              <div className="pt-2">
+                <div className="flex items-center gap-2 text-[14px] mb-4" style={{ color: T.gray600 }}>
+                  <LoaderCircle size={16} className="animate-spin" style={{ color: T.primary }} />
+                  {t("Generating summary…")}
+                </div>
+                {[92, 100, 76, 0, 60, 96, 88, 0, 70, 94].map((w, i) =>
+                  w ? <div key={i} className="h-3 rounded mb-2.5 animate-pulse" style={{ width: `${w}%`, backgroundColor: T.light }} /> : <div key={i} className="h-4" />
+                )}
+              </div>
+            ) : (
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                <div className="text-[13px] mb-3" style={{ color: T.gray600 }}>
+                  {t("For")} {persona?.name} ({t(persona?.role ?? "GP")}) · {generatedAt?.toLocaleDateString("en-GB")}{" "}
+                  {generatedAt?.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                </div>
+                <p className="text-[15px] leading-[1.5] mb-5" style={{ color: T.bodyText }}>
+                  <AiSummaryText segments={summary.headline} onOpenRecord={onOpenRecord} />
+                </p>
+
+                {summary.sections.map((section) => (
+                  <section
+                    key={section.title}
+                    className={`mb-5 ${section.critical ? "rounded-[4px] border px-4 py-3" : ""}`}
+                    style={section.critical ? { backgroundColor: "#FFF5F5", borderColor: "#F1C6C3" } : undefined}
+                  >
+                    <h3 className="flex items-center gap-2 text-[13px] font-bold uppercase tracking-[0.5px] mb-2" style={{ color: section.critical ? "#C74139" : T.gray600 }}>
+                      {section.critical && <AlertTriangle size={15} strokeWidth={2.5} />}
+                      {section.title}
+                      {section.since && <span className="normal-case font-semibold tracking-normal">({summary.lastView})</span>}
+                    </h3>
+                    <ul className="flex flex-col gap-1.5">
+                      {section.items.map((item, i) => (
+                        <li key={i} className="flex gap-2 text-[14px] leading-[1.5]" style={{ color: T.bodyText }}>
+                          <span className="mt-[9px] w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: section.critical ? "#C74139" : T.gray500 }} />
+                          <span>
+                            <AiSummaryText segments={item} onOpenRecord={onOpenRecord} />
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+
+                <p className="text-[12px] leading-[1.5] mb-6" style={{ color: T.gray600 }}>
+                  {t("Based on the BgZ records from 4 of 5 sources (MUMC+ returned no data) and the advance care plan (PZP). AI-generated: check the linked source records before acting on it.")}
+                </p>
+
+                {thread.map((m, i) => (
+                  <div key={i} className="mb-5">
+                    <div className="flex justify-end mb-2">
+                      <div className="text-[14px] rounded-[16px] px-4 py-2 max-w-[85%]" style={{ backgroundColor: T.light, color: T.bodyText }}>{m.q}</div>
+                    </div>
+                    <div className="flex flex-col gap-1.5 text-[14px] leading-[1.5]" style={{ color: T.bodyText }}>
+                      {m.a.map((para, k) => (
+                        <p key={k}><AiSummaryText segments={para} onOpenRecord={onOpenRecord} /></p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                <h3 className="text-[13px] font-bold mb-2" style={{ color: T.gray600 }}>{t("Related questions")}</h3>
+                <div className="flex flex-col items-start gap-2">
+                  {summary.questions.filter((x) => !asked.has(x.q)).map((x) => (
+                    <button
+                      key={x.q}
+                      onClick={() => ask(x.q, x.a)}
+                      className="text-left text-[14px] border rounded-full px-4 py-1.5 hover:bg-black/[0.03]"
+                      style={{ borderColor: T.gray400, color: T.bodyText }}
+                    >
+                      {x.q}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t shrink-0" style={{ borderColor: T.border }}>
+            <div className="relative">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    submitPrompt();
+                  }
+                }}
+                disabled={generating}
+                rows={3}
+                placeholder={t("Enter your own question or prompt")}
+                className="w-full resize-none rounded-[4px] border px-3 py-2 pr-11 text-[14px] outline-none"
+                style={{ borderColor: T.primary, color: T.bodyText }}
+              />
+              <button
+                onClick={submitPrompt}
+                disabled={!prompt.trim()}
+                className="absolute right-2.5 bottom-3.5 w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                style={{ backgroundColor: T.primary }}
+                aria-label={t("Send")}
+              >
+                <SendHorizontal size={14} color="#fff" />
+              </button>
+            </div>
+          </div>
+        </motion.aside>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, timelineDefaultRange, persona, summaryOpen, onSummaryOpen, onSummaryClose }) {
   const { t } = useLanguage();
   const [runId, setRunId] = useState(0);
   const [sourceStatus, setSourceStatus] = useState({});
@@ -4462,6 +4966,13 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
   const [recordFilters, setRecordFilters] = useState({});
   // Which status pill is selected, per category (defaults to its first one).
   const [phaseByCategory, setPhaseByCategory] = useState({});
+  // Per-category "Period" filter from the Filters drawer (TIME_OPTIONS key).
+  const [periodByCategory, setPeriodByCategory] = useState({});
+  const periodOf = (catKey) => periodByCategory[catKey] ?? "all";
+  const setPeriodOf = (catKey, key) => setPeriodByCategory((prev) => ({ ...prev, [catKey]: key }));
+  const timeFilter = periodOf("encounters");
+  // Record categories keep their own sort (allergies default to severity).
+  const [recordSort, setRecordSort] = useState({});
 
   const allItemsRef = useRef([]);
   const timeoutsRef = useRef([]);
@@ -4614,10 +5125,12 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
     setTypeFilters(new Set());
     setStatusFilters({ arrived: true, planned: true });
     setCareProviderQuery("");
+    setPeriodOf("encounters", "all");
   };
 
   const activeFilterCount =
     typeFilters.size +
+    (timeFilter !== "all" ? 1 : 0) +
     (!statusFilters.arrived || !statusFilters.planned ? 1 : 0) +
     (careProviderQuery.trim() ? 1 : 0);
 
@@ -4625,7 +5138,8 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
   const phaseOf = (cat) => phaseByCategory[cat.key] ?? (cat.phases ? cat.phases[0].key : "all");
   const setPhaseOf = (catKey, key) => setPhaseByCategory((prev) => ({ ...prev, [catKey]: key }));
   const filtersOf = (cat) => recordFilters[cat.key] ?? {};
-  const filterCountOf = (cat) => Object.values(filtersOf(cat)).reduce((n, set) => n + set.size, 0);
+  const filterCountOf = (cat) =>
+    Object.values(filtersOf(cat)).reduce((n, set) => n + set.size, 0) + (periodOf(cat.key) !== "all" ? 1 : 0);
 
   const activePhase = phaseOf(category);
   const setActivePhase = (key) => setPhaseOf(activeCategory, key);
@@ -4640,37 +5154,53 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
       return { ...prev, [activeCategory]: cat };
     });
   };
-  const clearRecordFilters = () => setRecordFilters((prev) => ({ ...prev, [activeCategory]: {} }));
+  const clearRecordFilters = () => {
+    setRecordFilters((prev) => ({ ...prev, [activeCategory]: {} }));
+    setPeriodOf(activeCategory, "all");
+  };
 
   // A record category's list: the page-level organisation/time dropdowns and
   // the selected status pill, then the drawer's sections, then sort. Shared
   // by the Detailed view (active category) and every Dashboard card, so both
   // always show the same records for the same pill.
-  const orgNameAllowed = (name) => !sourceFilter || SOURCE_CONFIG.some((s) => s.name === name && sourceFilter.has(s.id));
+  const recordSortOf = (cat) => recordSort[cat.key] ?? cat.sorts?.[0] ?? "newest";
+  const byDate = (order) => (a, b) => (order === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date));
+  const recordComparator = (order) =>
+    order === "severity"
+      ? (a, b) => (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0) || byDate("newest")(a, b)
+      : byDate(order);
   const recordListFor = (cat) => {
     const phase = phaseOf(cat);
     const selected = filtersOf(cat);
-    const inView = cat.entries.filter((item) => orgNameAllowed(item.source) && recordWithinTimeWindow(item, timeFilter));
+    const inView = cat.entries;
     const inPhase = inView.filter((item) => phase === "all" || item.phase === phase);
+    const period = periodOf(cat.key);
     const displayed = inPhase
+      .filter((item) => recordWithinTimeWindow(item, period))
       .filter((item) => (cat.filters ?? []).every((f) => !selected[f.key]?.size || selected[f.key].has(f.valueOf(item))))
-      .sort((a, b) => (sortOrder === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date)));
+      .sort(recordComparator(recordSortOf(cat)));
     const phases = cat.phases
       ? cat.phases.map((p) => ({ ...p, count: inView.filter((item) => item.phase === p.key).length }))
       : [{ key: "all", label: "All", count: inView.length }];
-    return { phases, phase, inPhase, displayed };
+    // Critical = a danger-toned record in the category's current status
+    // (a resolved severe allergy shouldn't raise the alarm).
+    const critical = inView.some((item) => item.tone === "danger" && (!cat.phases || item.phase === cat.phases[0].key));
+    return { phases, phase, inPhase, displayed, critical };
   };
+  // How many records a category holds, across all its statuses — shown next to its name on the Dashboard card
+  // and in the Detailed rail, so it's visible while collapsed or not opened.
+  const categoryCount = (cat) =>
+    cat.entries ? recordListFor(cat).phases.reduce((n, p) => n + p.count, 0) : ENCOUNTER_TOTAL;
+  const categoryCritical = (cat) => !!cat.entries && recordListFor(cat).critical;
   const activeRecords = category.entries ? recordListFor(category) : null;
   const recordsInPhase = activeRecords?.inPhase ?? [];
   const displayedRecords = activeRecords?.displayed ?? [];
   const recordPhases = activeRecords?.phases ?? [];
 
   // Filters are a pure view over whatever has already merged in — they never
-  // change what's fetched, only what's shown. Source/time come from the
-  // page-level "All organisations" / "All time" dropdowns.
+  // change what's fetched, only what's shown.
   const passesFilters = (item) => {
     if (!statusFilters.arrived) return false; // every entry here is "arrived" (this is the Past tab)
-    if (sourceFilter && !sourceFilter.has(sourceIdForItem(item))) return false;
     if (!withinTimeWindow(item, timeFilter)) return false;
     if (typeFilters.size > 0) {
       const key = encounterTypeKey(item);
@@ -4702,9 +5232,8 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
   // of the filtered period. Each source pages newest-first, so what's loaded
   // is "everything since its oldest loaded record". The limiting boundary is
   // the most recent of those dates across still-incomplete sources.
-  const encounterFiltersActive =
-    activeFilterCount > 0 || timeFilter !== "all" || (sourceFilter && sourceFilter.size < SOURCE_CONFIG.length);
-  const selectedSources = SOURCE_CONFIG.filter((s) => !sourceFilter || sourceFilter.has(s.id));
+  const encounterFiltersActive = activeFilterCount > 0;
+  const selectedSources = SOURCE_CONFIG;
   const coverage = selectedSources.reduce(
     (acc, s) => {
       const total = s.entries.length;
@@ -4776,9 +5305,9 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
       key: c.key,
       label: c.label,
       icon: c.icon,
-      marks: c.entries ? c.entries.filter((item) => orgNameAllowed(item.source)).map((item) => recordToMark(item, timelineToday, c.key)) : [],
+      marks: c.entries ? c.entries.map((item) => recordToMark(item, timelineToday, c.key)) : [],
     }));
-  const timelineEncounters = visibleItems.filter((item) => !sourceFilter || sourceFilter.has(sourceIdForItem(item)));
+  const timelineEncounters = visibleItems;
   // { start, end, label } of the encounter dot whose preview is open.
   const [encounterPreview, setEncounterPreview] = useState(null);
   // Clicking a mark opens it in Detailed information, on the right status pill
@@ -4795,6 +5324,8 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
   const renderDashboardCard = (cat) => {
     const common = {
       category: cat,
+      count: categoryCount(cat),
+      critical: categoryCritical(cat),
       collapsed: !!collapsedCards[cat.key],
       onToggleCollapsed: () => setCollapsedCards((prev) => ({ ...prev, [cat.key]: !prev[cat.key] })),
       onShowAll: () => openInDetailed(cat.key),
@@ -4879,6 +5410,7 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
           onOpenCategory={openInDetailed}
           onLoadOlder={() => fetchMoreFromSources({ onlyIds: selectedSources.map((src) => src.id) })}
           onOpenEncounters={setEncounterPreview}
+          onOpenSummary={onSummaryOpen}
           defaultRange={timelineDefaultRange}
         />
         {encounterPreview && (
@@ -4918,8 +5450,14 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
               className={`shrink-0 font-semibold text-sm tracking-wide uppercase px-4 py-3 flex items-center justify-between gap-2.5 text-left ${i > 0 ? "border-t border-[#DEE2E6]" : ""}`}
               style={{ backgroundColor: isActive ? T.primary : "#fff", color: isActive ? "#fff" : T.bodyText }}
             >
-              <span className="flex items-center gap-2.5">
-                <Icon size={16} className="shrink-0" style={{ color: isActive ? "#fff" : T.primary }} /> {t(c.label)}
+              {/* One line per row: a long name truncates, the count and critical mark always stay. */}
+              <span className="flex items-center gap-2.5 flex-1 min-w-0" title={t(c.label)}>
+                <Icon size={16} className="shrink-0" style={{ color: isActive ? "#fff" : T.primary }} />
+                <span className="flex min-w-0 whitespace-nowrap">
+                  <span className="truncate">{t(c.label)}</span>
+                  <span className="shrink-0">&nbsp;(<span style={{ color: isActive ? "#fff" : T.primary }}>{categoryCount(c)}</span>)</span>
+                </span>
+                {categoryCritical(c) && <CriticalMark />}
               </span>
               <SourceCountIndicator loadedCount={loadedCount} allSettled={allSettled} isActive={isActive} />
             </button>
@@ -5143,11 +5681,15 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
               onPhaseChange={setActivePhase}
               filterCount={activeRecordFilterCount}
               showFilters={!!category.filters}
-              sortOrder={sortOrder}
+              sortOptions={category.sorts}
+              sortOrder={recordSortOf(category)}
               sortMenuOpen={sortMenuOpen}
               setSortMenuOpen={setSortMenuOpen}
               sortMenuRef={sortMenuRef}
-              changeSortOrder={changeSortOrder}
+              changeSortOrder={(o) => {
+                setRecordSort((prev) => ({ ...prev, [activeCategory]: o }));
+                setSortMenuOpen(false);
+              }}
               onOpenFilters={() => setFiltersOpen(true)}
             />
             {recordsInPhase.length === 0 && (
@@ -5172,6 +5714,11 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
         )}
       </div>
     </div>
+    )}
+
+    {typeof document !== "undefined" && createPortal(
+      <AiSummaryDrawer open={summaryOpen} onClose={onSummaryClose} persona={persona} onOpenRecord={openRecord} />,
+      document.body
     )}
 
     {typeof document !== "undefined" && createPortal(
@@ -5220,6 +5767,12 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
                         checked={statusFilters.planned}
                         onChange={() => setStatusFilters((p) => ({ ...p, planned: !p.planned }))}
                       />
+                    </FilterAccordion>
+
+                    <FilterAccordion title={t("Period")} open onToggle={() => {}}>
+                      {TIME_OPTIONS.map((o) => (
+                        <FilterCheckbox key={o.key} label={t(o.label)} checked={periodOf("encounters") === o.key} onChange={() => setPeriodOf("encounters", o.key)} />
+                      ))}
                     </FilterAccordion>
 
                     <FilterAccordion
@@ -5271,6 +5824,13 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
                         ))}
                       </FilterAccordion>
                     )}
+                    {category.period && (
+                      <FilterAccordion title={t("Period")} open onToggle={() => {}}>
+                        {TIME_OPTIONS.map((o) => (
+                          <FilterCheckbox key={o.key} label={t(o.label)} checked={periodOf(activeCategory) === o.key} onChange={() => setPeriodOf(activeCategory, o.key)} />
+                        ))}
+                      </FilterAccordion>
+                    )}
                     {(category.filters ?? []).map((f) => (
                       <FilterAccordion key={f.key} title={t(f.title)} open onToggle={() => {}}>
                         {categoryFilterOptions(category, f, recordsInPhase, t).map((o) => (
@@ -5301,103 +5861,6 @@ function EncountersSection({ scrollRef, sourceFilter, timeFilter, view, onViewCh
       document.body
     )}
     </>
-  );
-}
-
-// "All organisations" — multi-select checkbox dropdown, global to the page.
-function OrgFilterDropdown({ selected, onChange }) {
-  const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useClickOutside(ref, () => setOpen(false), open);
-
-  const toggle = (id) => {
-    onChange((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-60 flex items-center justify-between border rounded px-3 py-2 text-[14px] bg-white text-left"
-        style={{ borderColor: T.gray400, color: T.gray600 }}
-      >
-        <span className="truncate">{orgFilterLabel(selected, t)}</span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="shrink-0">
-          <ChevronDown size={15} style={{ color: T.primary }} />
-        </motion.span>
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 top-full mt-2 w-72 rounded-md border bg-white shadow-lg p-3 z-20"
-            style={{ borderColor: T.border }}
-          >
-            {SOURCE_CONFIG.map((s) => (
-              <FilterCheckbox key={s.id} label={s.name} checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// "All time" — single-select dropdown, global to the page.
-function TimeFilterDropdown({ value, onChange }) {
-  const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useClickOutside(ref, () => setOpen(false), open);
-  const label = t(TIME_OPTIONS.find((o) => o.key === value)?.label ?? "All time");
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-60 flex items-center justify-between border rounded px-3 py-2 text-[14px] bg-white"
-        style={{ borderColor: T.gray400, color: T.gray600 }}
-      >
-        {label}
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronDown size={15} style={{ color: T.primary }} />
-        </motion.span>
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 top-full mt-2 w-60 rounded-md border bg-white shadow-lg overflow-hidden z-20"
-            style={{ borderColor: T.border }}
-          >
-            {TIME_OPTIONS.map((o) => (
-              <button
-                key={o.key}
-                onClick={() => {
-                  onChange(o.key);
-                  setOpen(false);
-                }}
-                className="w-full text-left px-4 py-2.5 text-[14px]"
-                style={{ color: T.bodyText, backgroundColor: value === o.key ? T.lightBg : "#fff" }}
-              >
-                {t(o.label)}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
   );
 }
 
@@ -5616,9 +6079,9 @@ function Px360ViewSwitch({ value, onChange }) {
 function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona, onReset, unreadCount, onOpenNotifications, caseManagerPersonaId, sidebarCollapsed, onToggleSidebar, dashboardLayout, onDashboardLayoutChange, railLayout, onRailLayoutChange }) {
   const { t } = useLanguage();
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const closeSummary = useCallback(() => setSummaryOpen(false), []);
   const contentScrollRef = useRef(null);
-  const [sourceFilter, setSourceFilter] = useState(() => new Set(SOURCE_CONFIG.map((s) => s.id)));
-  const [timeFilter, setTimeFilter] = useState("all");
   // "dashboard" (default, per the Figma BGZ viewer frame) or "detailed" —
   // the rail + full-list view that PX360 used to be on its own.
   const [view, setView] = useState("dashboard");
@@ -5643,11 +6106,18 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
                 <Px360ViewSwitch value={view} onChange={setView} />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-6 mt-4 mb-6">
-              <OrgFilterDropdown selected={sourceFilter} onChange={setSourceFilter} />
-              <TimeFilterDropdown value={timeFilter} onChange={setTimeFilter} />
-            </div>
-            <EncountersSection scrollRef={contentScrollRef} sourceFilter={sourceFilter} timeFilter={timeFilter} view={view} onViewChange={setView} layout={dashboardLayout} railLayout={railLayout} timelineDefaultRange={TIMELINE_DEFAULT_RANGE[persona?.role] ?? "1y"} />
+            {/* Where the page-level organisation/time filters used to be (time
+                now lives in each category's Filters drawer; organisation was
+                dropped). On the Dashboard the AI summary button sits in the
+                timeline's header row instead. */}
+            {view === "detailed" ? (
+              <div className="flex items-center justify-end mt-4 mb-6">
+                <AiSummaryButton onClick={() => setSummaryOpen(true)} />
+              </div>
+            ) : (
+              <div className="mb-6" />
+            )}
+            <EncountersSection scrollRef={contentScrollRef} view={view} onViewChange={setView} layout={dashboardLayout} railLayout={railLayout} timelineDefaultRange={TIMELINE_DEFAULT_RANGE[persona?.role] ?? "1y"} persona={persona} summaryOpen={summaryOpen} onSummaryOpen={() => setSummaryOpen(true)} onSummaryClose={closeSummary} />
           </div>
         </div>
       </div>

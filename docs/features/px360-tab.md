@@ -44,6 +44,63 @@ The layout survives a reload, and Reset demo restores the default.
 **Not built yet:** "Set filter" per category in the modal (e.g. only active medication), the
 modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
 
+**AI summary drawer** (added 2026-10-05). An "AI summary" button (both views, see above) opens a right-hand drawer (no backdrop) with a clinical summary of the patient, built from the BgZ
+records of both views plus the advance care plan (PZP).
+- Content is written in advance per persona role (`AI_SUMMARIES` keyed by `persona.role`: GP,
+  Community Nurse, Physiotherapist). Same patient, different selection and order:
+  - **GP:** Safety → Since your last view → Current situation → Medication → Upcoming and open →
+    Care team and contacts.
+  - **Community Nurse:** Safety at home → Since your last visit → Care needs → Symptoms and rescue
+    medication → Coming up → Contacts.
+  - **Physiotherapist:** Precautions → Since your last view → Function and aids → What matters to
+    him → Care team.
+- The safety section is red-tinted. "Since your last view" uses a fixed per-role date
+  (`lastView`) to fake the moment the viewer last opened the patient.
+- Every fact is a link (`src(text, category, recordId)`) that opens the record in Detailed
+  information, on the right status pill and expanded; the drawer stays open beside it. PZP-derived
+  statements are marked "(PZP)".
+- It summarises and never advises: it repeats recorded alerts (e.g. "review opioid dosing") and
+  says the decision is the clinician's.
+- Three suggested questions per role with written answers; asked questions move into a thread above
+  the remaining ones. Free text gets a fixed reply that only suggested questions are answered in
+  the prototype.
+- "Generating summary…" skeleton for 1.4 s on every open, then a "For <name> (<role>) · <time>"
+  line. Footer states the sources used (4 of 5, MUMC+ empty, plus PZP) and to check the linked
+  records.
+- Summary content is English only; the drawer's labels are translated.
+- The planned pleural catheter placement moved from 02/10/2026 to 22/10/2026 so it stays upcoming.
+
+**No page-level filters; Period per category** (2026-10-05). The page-level "All organisations"
+dropdown was removed (each record still shows its source). The time filter moved into each
+category's Filters drawer as a "Period" section (All time, Last month, Last 6 months, Last year,
+Last 5 years), on categories flagged `period: true`: Encounters, Complaints and diagnoses,
+Medication, Procedures, Lab results, Vital signs, Functional status, Social history, Medical
+devices, Vaccinations. Left out on purpose: Allergies, Alerts and Treatment restrictions (safety
+facts that must never drop out of view by age) and the administrative categories. The period
+counts towards the Filters badge, "Clear all filters" resets it, and like the other drawer filters
+it narrows the list but not the category count or the critical mark. For Encounters it still drives
+the "Search older records" coverage.
+The AI summary button took the filters' place: on the Dashboard it ends the timeline's header row
+(Figma order: period title + ‹ Today ›, range toggles, AI summary); in Detailed information it has
+its own right-aligned row above the banner.
+
+**Category counts and colours** (added 2026-10-05). Every category name shows its number of
+records, e.g. "ALLERGIES (7)", on the Dashboard card header and in the Detailed view's left rail,
+so the count is visible while a card is collapsed or a category isn't opened. The count covers all
+statuses (Active + Resolved) and follows the page-level organisation/time filters; Encounters shows
+its known server total. Category names are black, the number and every record title are primary
+blue. Records with `tone: "danger"` (CPR, penicillin, peanuts) stay red.
+The rail's per-row source indicator now shows "n/5" only while sources load and then disappears;
+the check mark after a successful load was removed as clutter. A red warning icon remains only if a
+source failed to load (not reachable in the demo, since no mock source fails).
+A red alert triangle (`CriticalMark`) follows the count when a category holds a critical record —
+one with `tone: "danger"` in its current status (Active/Current), so a resolved severe allergy
+doesn't trigger it. It shows on the Dashboard card header and in the rail. Today that's Allergies
+(penicillin, peanuts) and Treatment restrictions (not for resuscitation).
+Allergies sort by severity by default ("Most severe first": severe → moderate → mild, newest first
+within a level), with Newest/Oldest first still in the sort menu. Sort is now kept per record
+category (a category can declare its options with `sorts`); Encounters keeps its own sort.
+
 **Per-category filters** (added 2026-10-01). Each record category's Filters drawer offers the
 sections that fit its BgZ building block, instead of a single generic "Type":
 

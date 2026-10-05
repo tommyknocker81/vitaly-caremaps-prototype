@@ -1113,3 +1113,29 @@ The user approved adding mock records so each filter has more than one value.
 Ruled out: status only in the pills (user preferred both, synced); per-category time or organisation
 filters (they stay page-level, see the time/source discussion of the same day).
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
+
+**2026-10-05 — AI summary: organised by clinical priority, per role, every fact linked to its record**
+Why: the user asked for an AI summary drawer covering everything important from both views. Going
+category by category in prose would repeat the Dashboard, so the summary is ordered by what a
+clinician must not miss (safety first), then the current picture, then what's next. The user asked
+for different content per persona: a GP gets the medical course and open decisions, a community
+nurse the home safety, care needs and rescue medication, a physiotherapist the precautions, function
+and the patient's own goals. The user also approved a "since your last view" section (faked with a
+fixed date per role) and including the advance care plan (PZP). Every statement links to its source
+record so it can be checked in one click, and the summary repeats what's recorded rather than giving
+advice (safer clinically and regulatorily). For the prototype the content is written in advance with
+a short generating state; the free-text prompt gets a fixed reply.
+Ruled out: one summary for everyone; a live model call (needs an API key and backend; can come
+later); recommendations such as dose changes.
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
+
+**2026-10-05 — Time filter per category, organisation filter removed**
+Why: the user asked to remove the page-level organisation filter and move the time filter into each
+category's filters. Each record already shows its source, and the earlier discussion found no BgZ
+requirement for either filter. A per-category period also avoids the global filter's risk of hiding
+long-standing facts everywhere at once. It is only offered where record dates mean something to
+filter on; allergies, alerts and treatment restrictions never get it, so safety facts can't
+disappear by age.
+Ruled out: keeping a global time filter alongside (the user chose per category); a period filter
+on safety and administrative categories.
+Related: [docs/features/px360-tab.md](features/px360-tab.md)
