@@ -1139,3 +1139,17 @@ disappear by age.
 Ruled out: keeping a global time filter alongside (the user chose per category); a period filter
 on safety and administrative categories.
 Related: [docs/features/px360-tab.md](features/px360-tab.md)
+
+**2026-10-06 — AI summary button in the title row, view tabs under the title, docked panel**
+Why: the button had moved between the timeline header (Dashboard) and a row of its own (Detailed),
+and the treatment restriction banner isn't always present, so nothing below the title was a stable
+anchor. The user's Figma frames put "Customize view" and an outlined "AI summary" button in the
+title row and the Dashboard/Detailed view switch as tabs under it. The panel is docked so the
+summary and the records it links to are visible side by side. Outlined rather than filled, so the
+AI doesn't outweigh the safety banner and the records. The banner stays in both views (user's
+choice over the Figma Dashboard's card), as the most safety-critical item must stay at the top.
+Docking is width-based (page must keep ~860px), with the overlay as fallback, and the Dashboard drops
+columns while docked.
+Ruled out: next to the title; in the patient bar (a bigger, cross-tab decision for later); a
+floating edge tab; a summary teaser card.
+Related: [docs/features/px360-tab.md](features/px360-tab.md)

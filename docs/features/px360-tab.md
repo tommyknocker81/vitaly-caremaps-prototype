@@ -44,6 +44,24 @@ The layout survives a reload, and Reset demo restores the default.
 **Not built yet:** "Set filter" per category in the modal (e.g. only active medication), the
 modal's "Timeline" tab, and the Figma frame's timeline and use-case switcher.
 
+**Page header, view tabs and docked AI summary** (2026-10-06, from the user's Figma frames).
+- Title row: "Patient 360" on the left; "Customize view" and an outlined "AI summary" button on the
+  right, the same in both views and independent of the banner and the timeline. The button looks
+  pressed while the panel is open and closes it when clicked again.
+- "Dashboard | Detailed view" are underlined tabs under the title (`Px360ViewTabs`), replacing the
+  segmented switch; "Detailed information" was renamed "Detailed view". The treatment restriction
+  banner stays in both views, under the tabs (the Figma Dashboard showed it as a card; the user
+  chose the banner in both).
+- The AI summary panel docks beside the page below the patient bar (400px, own scroll, prompt box
+  pinned at the bottom) and narrows the page, so the summary and the BgZ records are visible side
+  by side; it stays open across tab switches and source-link clicks. It docks only when the page
+  keeps at least ~860px next to it (measured on the area below the patient bar); otherwise it lays
+  over the page as before.
+- While the panel is open the Dashboard uses fewer columns when they'd get tight (1 below ~900px
+  of grid width, 2 below ~1300px); the saved layout returns when it closes.
+- The button left the timeline header (whose right side is now empty) and the Detailed view's own
+  row.
+
 **AI summary drawer** (added 2026-10-05). An "AI summary" button (both views, see above) opens a right-hand drawer (no backdrop) with a clinical summary of the patient, built from the BgZ
 records of both views plus the advance care plan (PZP).
 - Content is written in advance per persona role (`AI_SUMMARIES` keyed by `persona.role`: GP,
@@ -81,7 +99,7 @@ counts towards the Filters badge, "Clear all filters" resets it, and like the ot
 it narrows the list but not the category count or the critical mark. For Encounters it still drives
 the "Search older records" coverage.
 The AI summary button took the filters' place: on the Dashboard it ends the timeline's header row
-(Figma order: period title + ‹ Today ›, range toggles, AI summary); in Detailed information it has
+(Figma order: period title, range toggles, AI summary; the ‹ Today › buttons were removed on request on 2026-10-06, the window still moves by dragging the timeline or the overview strip); in Detailed information it has
 its own right-aligned row above the banner.
 
 **Category counts and colours** (added 2026-10-05). Every category name shows its number of
@@ -90,7 +108,8 @@ so the count is visible while a card is collapsed or a category isn't opened. Th
 statuses (Active + Resolved) and follows the page-level organisation/time filters; Encounters shows
 its known server total. Category names are black, the number and every record title are primary
 blue. Records with `tone: "danger"` (CPR, penicillin, peanuts) stay red.
-The rail's per-row source indicator now shows "n/5" only while sources load and then disappears;
+The rail's per-row source indicator shows a spinning loader while sources load (it showed "n/5"
+until 2026-10-06; the source count is still in the "Sources (n/5 loaded)" header) and then disappears;
 the check mark after a successful load was removed as clutter. A red warning icon remains only if a
 source failed to load (not reachable in the demo, since no mock source fails).
 A red alert triangle (`CriticalMark`) follows the count when a category holds a critical record —
@@ -407,9 +426,9 @@ sections that fit its BgZ building block, instead of a single generic "Type":
     to match how clinicians think about time: "the last 3 months", "what's coming"). The
     `TIMELINE_RANGES` buttons are 4 weeks, 3 months, 1 year and 5 years. Each window is the last N
     days, today included, plus a look-ahead for planned care (2 weeks, 4 weeks, 2 months, 3 months),
-    so today sits near the right edge. At today, the title is relative ("Last 3 months" / "and next 4
-    weeks"); once moved away, it becomes a date range. The arrows move the window by one range
-    length, and Today puts it back. Switching range at today stays at today; while browsing, it
+    so today sits near the right edge. At today, the title is relative ("Last 3 months"; the "and
+    next 4 weeks" subtitle and the ‹ Today › buttons were removed on 2026-10-06); once moved away,
+    it becomes a date range. Switching range at today stays at today; while browsing, it
     keeps the same moment centred. The axis unit follows the range: days, Monday weeks, months, or
     years. In the day view, a "1 Oct" label borrows the next day's column.
   - **Default span per role** (`TIMELINE_DEFAULT_RANGE`, from the signed-in persona's role): a

@@ -2986,7 +2986,7 @@ Object.assign(NL, {
 
   // Dashboard / Detailed information sub-tabs
   "Dashboard": "Dashboard",
-  "Detailed information": "Gedetailleerde informatie",
+  "Detailed view": "Gedetailleerde weergave",
   "Show all": "Alles tonen",
   "Treatment restriction": "Behandelbeperking",
 
@@ -3035,13 +3035,6 @@ Object.assign(NL, {
   "Last 3 months": "Afgelopen 3 maanden",
   "Last 12 months": "Afgelopen 12 maanden",
   "Last 5 years": "Afgelopen 5 jaar",
-  "timeline:and": "en",
-  "next 2 weeks": "komende 2 weken",
-  "next 4 weeks": "komende 4 weken",
-  "next 2 months": "komende 2 maanden",
-  "next 3 months": "komende 3 maanden",
-  "Previous period": "Vorige periode",
-  "Next period": "Volgende periode",
   "Operation": "Operatie",
   "Diagnostic procedure": "Diagnostische verrichting",
   "Puncture / drainage": "Punctie / drainage",
@@ -3147,6 +3140,7 @@ Object.assign(NL, {
   "Contains critical information": "Bevat kritieke informatie",
   "AI summary": "AI-samenvatting",
   "Period": "Periode",
+  "Loading": "Laden",
   "Generating summary\u2026": "Samenvatting wordt gemaakt\u2026",
   "For": "Voor",
   "Related questions": "Gerelateerde vragen",
@@ -3275,7 +3269,7 @@ Object.assign(NL, {
   "Palliative-terminal care indication requested from the CIZ.": "Indicatie palliatief-terminale zorg aangevraagd bij het CIZ.",
 });
 
-// The left-rail live indicator: n/5 counting up while sources load, then
+// The left-rail live indicator: a spinner while sources load, then
 // nothing once everything arrived (a check on every row was clutter). A
 // warning icon stays only if a source didn't load, so the row asks for
 // attention. All rows share the same underlying 5-source fetch (see
@@ -3284,10 +3278,10 @@ Object.assign(NL, {
 function SourceCountIndicator({ loadedCount, allSettled, isActive }) {
   const { t } = useLanguage();
   const failed = allSettled && loadedCount < SOURCE_CONFIG.length;
-  const key = !allSettled ? `n${loadedCount}` : failed ? "failed" : "done";
+  const key = !allSettled ? "loading" : failed ? "failed" : "done";
   return (
     // Takes no room once everything loaded, so long names get the space.
-    <span className={`relative block h-[18px] shrink-0 ${key === "done" ? "w-0 -ml-2.5" : "w-[32px]"}`}>
+    <span className={`relative block h-[18px] shrink-0 ${key === "done" ? "w-0 -ml-2.5" : "w-[18px]"}`}>
       <AnimatePresence initial={false}>
         {key !== "done" && (
           <motion.span
@@ -3300,7 +3294,7 @@ function SourceCountIndicator({ loadedCount, allSettled, isActive }) {
           >
             {failed
               ? <AlertTriangle size={16} strokeWidth={2.5} style={{ color: isActive ? "#fff" : T.danger }} aria-label={t("Not every source loaded")} />
-              : <span className="text-[13px] font-semibold tabular-nums">{loadedCount}/{SOURCE_CONFIG.length}</span>}
+              : <LoaderCircle size={16} strokeWidth={2.5} className="animate-spin" style={{ color: isActive ? "#fff" : T.primary }} aria-label={t("Loading")} />}
           </motion.span>
         )}
       </AnimatePresence>
@@ -3901,10 +3895,10 @@ function packRows(marks, toPct) {
 // `unit` is the column size on the axis. Which one opens first depends on the
 // signed-in role (TIMELINE_DEFAULT_RANGE).
 const TIMELINE_RANGES = [
-  { key: "4w", label: "4 weeks", title: "Last 4 weeks", ahead: "next 2 weeks", past: 28, future: 14, unit: "day" },
-  { key: "3m", label: "3 months", title: "Last 3 months", ahead: "next 4 weeks", past: 91, future: 28, unit: "week" },
-  { key: "1y", label: "1 year", title: "Last 12 months", ahead: "next 2 months", past: 365, future: 61, unit: "month" },
-  { key: "5y", label: "5 years", title: "Last 5 years", ahead: "next 3 months", past: 1826, future: 91, unit: "year" },
+  { key: "4w", label: "4 weeks", title: "Last 4 weeks", past: 28, future: 14, unit: "day" },
+  { key: "3m", label: "3 months", title: "Last 3 months", past: 91, future: 28, unit: "week" },
+  { key: "1y", label: "1 year", title: "Last 12 months", past: 365, future: 61, unit: "month" },
+  { key: "5y", label: "5 years", title: "Last 5 years", past: 1826, future: 91, unit: "year" },
 ];
 // Out-of-hours and home-care roles live in the near term; a GP consult looks
 // back over the last months; anyone else starts on the last year.
@@ -4013,22 +4007,37 @@ function RecordHoverCard({ mark, x, y }) {
 // a count, and clicking one opens a preview of just those encounters. Periods
 // not fully loaded yet are hatched in the Encounters lane (click to load
 // older pages).
-// Opens the AI summary drawer. On the Dashboard it ends the timeline's header
-// row; in Detailed information (no timeline) it has a row of its own.
-function AiSummaryButton({ onClick }) {
+// [ref, width] of an element, kept current with a ResizeObserver.
+function useElementWidth() {
+  const [el, setEl] = useState(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, width];
+}
+
+// Toggles the AI summary panel. Lives in the page's title row next to
+// "Customize view", so it's in the same place in both views. Looks pressed
+// while the panel is open; clicking it again closes the panel.
+function AiSummaryButton({ onClick, active }) {
   const { t } = useLanguage();
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 rounded-[4px] border px-3 py-[7px] text-[14px] leading-[1.5] bg-white hover:bg-black/[0.02] whitespace-nowrap"
-      style={{ color: T.primary, borderColor: T.primary }}
+      aria-pressed={active}
+      className="flex items-center gap-1.5 rounded-[4px] border px-3 py-[7px] text-[14px] leading-[1.5] whitespace-nowrap hover:bg-black/[0.02]"
+      style={{ color: T.primary, borderColor: T.primary, backgroundColor: active ? "#E3F1F5" : "#fff" }}
     >
       <Sparkles size={16} /> {t("AI summary")}
     </button>
   );
 }
 
-function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpenRecord, onOpenCategory, onLoadOlder, onOpenEncounters, onOpenSummary, defaultRange = "1y" }) {
+function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpenRecord, onOpenCategory, onLoadOlder, onOpenEncounters, defaultRange = "1y" }) {
   const { t, lang } = useLanguage();
   // Stable for the component's life, so "is the window still at today?" is a
   // plain comparison rather than racing the clock.
@@ -4067,8 +4076,6 @@ function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpen
   // most one year after today, and the overview strip stops there too.
   const maxEnd = startOfToday + 365 * DAY_MS;
   const clampStart = (ms, len = span) => Math.min(ms, maxEnd - len);
-  const goTo = (ms) => setWinStart(clampStart(ms));
-  const stepPeriod = (dir) => goTo(winStart + dir * range.past * DAY_MS);
   const changeRange = (key) => {
     const r = TIMELINE_RANGES.find((x) => x.key === key);
     setRangeKey(key);
@@ -4094,7 +4101,6 @@ function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpen
   // Relative title at today ("Last 3 months · and next 4 weeks"); a date range
   // once you've moved away from today.
   const title = atToday ? t(range.title) : `${fmtShort(rangeStart)} – ${fmtShort(rangeEnd - 1)}`;
-  const subtitle = atToday ? `${t("and", "timeline")} ${t(range.ahead)}` : null;
 
   // Column headings in the range's unit (days, Monday-weeks, months, years).
   // Edge columns can be partial; they're sized by their visible share and
@@ -4220,36 +4226,23 @@ function DashboardTimeline({ lanes, encounters, notLoadedBefore, loading, onOpen
       <Icon size={18} className="shrink-0" style={{ color: T.primary }} /> {t(label)}
     </button>
   );
-  const navBtn = "h-[22px] rounded-[4px] bg-white border flex items-center justify-center text-[14px]";
 
   return (
     <div className="mb-6">
       {hover && <RecordHoverCard mark={hover.mark} x={hover.x} y={hover.y} />}
-      {/* Period title · range · navigation */}
-      {/* Figma order: selected period + its navigation, the range toggles in
-          the middle, then the AI summary button on the right. */}
+      {/* The selected period, then the range toggles in the middle. The
+          ‹ Today › buttons were removed on request; the window still moves by
+          dragging the timeline or the overview strip. */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 mb-6">
-        <div className="flex items-center gap-6 min-w-0">
-          <div className="min-w-0">
-            <h3 className="text-[22px] font-semibold leading-[1.2] whitespace-nowrap" style={{ color: T.black }}>{title}</h3>
-            {subtitle && <div className="text-[13px] mt-1 whitespace-nowrap" style={{ color: T.gray600 }}>{subtitle}</div>}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => stepPeriod(-1)} aria-label={t("Previous period")} className={`${navBtn} w-[30px]`} style={{ borderColor: T.border }}>
-              <ChevronLeft size={15} style={{ color: T.bodyText }} />
-            </button>
-            <button onClick={() => goTo(anchoredStart(range))} className={`${navBtn} px-4`} style={{ borderColor: T.border, color: T.bodyText }}>{t("Today")}</button>
-            <button onClick={() => stepPeriod(1)} aria-label={t("Next period")} className={`${navBtn} w-[30px]`} style={{ borderColor: T.border }}>
-              <ChevronRight size={15} style={{ color: T.bodyText }} />
-            </button>
-          </div>
+        <div className="min-w-0">
+          <h3 className="text-[22px] font-semibold leading-[1.2] whitespace-nowrap" style={{ color: T.black }}>{title}</h3>
         </div>
         <Segmented
           options={TIMELINE_RANGES.map((r) => ({ key: r.key, label: r.label }))}
           value={rangeKey}
           onChange={changeRange}
         />
-        <div className="flex justify-end">{onOpenSummary && <AiSummaryButton onClick={onOpenSummary} />}</div>
+        <div />
       </div>
 
       <div className="grid grid-cols-[160px_1fr]">
@@ -4744,11 +4737,13 @@ function AiSummaryText({ segments, onOpenRecord }) {
   );
 }
 
-// Right-hand drawer (Figma AI summary frame): the persona's summary, then
-// suggested questions with written-in-advance answers, and a prompt box. No
-// backdrop, so the page stays usable — clicking a source link opens the record
-// in Detailed information next to the open drawer.
-function AiSummaryDrawer({ open, onClose, persona, onOpenRecord }) {
+// Right-hand panel (Figma AI summary frame): the persona's summary, then
+// suggested questions with written-in-advance answers, and a prompt box.
+// `docked` (wide screens): it sits beside the page below the patient bar and
+// narrows it, so the summary and the BgZ data are visible side by side —
+// clicking a source link opens the record right next to it. Otherwise it lays
+// over the page from the right, without a backdrop.
+function AiSummaryDrawer({ open, onClose, persona, onOpenRecord, docked }) {
   const { t } = useLanguage();
   const summary = AI_SUMMARIES[persona?.role] ?? AI_SUMMARIES.GP;
   const [generating, setGenerating] = useState(true);
@@ -4795,14 +4790,14 @@ function AiSummaryDrawer({ open, onClose, persona, onOpenRecord }) {
       {open && (
         <motion.aside
           key="ai-summary"
-          className="fixed top-0 right-0 h-full w-[420px] max-w-[92vw] bg-white z-40 shadow-2xl flex flex-col border-l"
+          className={docked ? "h-full bg-white border-l overflow-hidden shrink-0" : "fixed top-0 right-0 h-full w-[420px] max-w-[92vw] bg-white z-40 shadow-2xl border-l"}
           style={{ borderColor: T.border }}
-          initial={{ x: "100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "100%" }}
-          transition={{ type: "spring", stiffness: 380, damping: 38 }}
+          {...(docked
+            ? { initial: { width: 0 }, animate: { width: 400 }, exit: { width: 0 }, transition: { duration: 0.25, ease: "easeInOut" } }
+            : { initial: { x: "100%" }, animate: { x: 0 }, exit: { x: "100%" }, transition: { type: "spring", stiffness: 380, damping: 38 } })}
           aria-label={t("AI summary")}
         >
+          <div className={`h-full flex flex-col ${docked ? "w-[400px]" : ""}`}>
           <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
             <span className="flex items-center gap-2 text-[14px] font-bold uppercase tracking-[1px]" style={{ color: T.bodyText }}>
               <Sparkles size={20} style={{ color: T.primary }} /> {t("AI summary")}
@@ -4919,13 +4914,14 @@ function AiSummaryDrawer({ open, onClose, persona, onOpenRecord }) {
               </button>
             </div>
           </div>
+          </div>
         </motion.aside>
       )}
     </AnimatePresence>
   );
 }
 
-function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, timelineDefaultRange, persona, summaryOpen, onSummaryOpen, onSummaryClose }) {
+function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, timelineDefaultRange, persona, summaryOpen, onSummaryClose, summaryHost, summaryDocked }) {
   const { t } = useLanguage();
   const [runId, setRunId] = useState(0);
   const [sourceStatus, setSourceStatus] = useState({});
@@ -5277,7 +5273,13 @@ function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, 
 
   // ---- Dashboard sub-tab ----
   const [collapsedCards, setCollapsedCards] = useState({});
-  const dashboardColumns = layout.columns.map((col) =>
+  // While the docked AI summary panel narrows the page, the Dashboard uses
+  // fewer columns when they'd get too tight (~420px per card). The saved
+  // layout is untouched and comes back when the panel closes.
+  const [dashboardRef, dashboardWidth] = useElementWidth();
+  const maxColumns = dashboardWidth < 900 ? 1 : dashboardWidth < 1300 ? 2 : 3;
+  const shownLayout = summaryOpen && dashboardWidth && layout.columns.length > maxColumns ? changeColumnCount(layout, maxColumns) : layout;
+  const dashboardColumns = shownLayout.columns.map((col) =>
     col.filter((item) => item.visible).map((item) => PX360_CATEGORIES.find((c) => c.key === item.key))
   );
   const currentCpr = RESTRICTION_ENTRIES
@@ -5410,7 +5412,6 @@ function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, 
           onOpenCategory={openInDetailed}
           onLoadOlder={() => fetchMoreFromSources({ onlyIds: selectedSources.map((src) => src.id) })}
           onOpenEncounters={setEncounterPreview}
-          onOpenSummary={onSummaryOpen}
           defaultRange={timelineDefaultRange}
         />
         {encounterPreview && (
@@ -5425,7 +5426,7 @@ function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, 
             }}
           />
         )}
-        <div className="flex items-start gap-4">
+        <div ref={dashboardRef} className="flex items-start gap-4">
           {dashboardColumns.map((cats, col) => (
             <div key={col} className="flex-1 min-w-0 flex flex-col gap-4">
               {cats.map(renderDashboardCard)}
@@ -5717,8 +5718,8 @@ function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, 
     )}
 
     {typeof document !== "undefined" && createPortal(
-      <AiSummaryDrawer open={summaryOpen} onClose={onSummaryClose} persona={persona} onOpenRecord={openRecord} />,
-      document.body
+      <AiSummaryDrawer open={summaryOpen} onClose={onSummaryClose} persona={persona} onOpenRecord={openRecord} docked={summaryDocked && !!summaryHost} />,
+      (summaryDocked && summaryHost) || document.body
     )}
 
     {typeof document !== "undefined" && createPortal(
@@ -6047,23 +6048,25 @@ function CustomizeDashboardModal({ layout, onSave, onClose, railMode }) {
   );
 }
 
-// Segmented "Dashboard | Detailed information" control (Figma 13561-53714).
-function Px360ViewSwitch({ value, onChange }) {
+// "Dashboard | Detailed view" tabs under the page title (Figma, 2026-10):
+// underlined like the patient bar's tabs but smaller and in sentence case, so
+// they read as a second level.
+function Px360ViewTabs({ value, onChange }) {
   const { t } = useLanguage();
   const options = [
     { key: "dashboard", label: "Dashboard" },
-    { key: "detailed", label: "Detailed information" },
+    { key: "detailed", label: "Detailed view" },
   ];
   return (
-    <div className="flex items-center gap-6 rounded-[4px] px-3 py-[3px]" style={{ backgroundColor: T.lightBg }}>
+    <div className="flex items-end gap-6 border-b mt-3" style={{ borderColor: T.border }}>
       {options.map((o) => {
         const active = o.key === value;
         return (
           <button
             key={o.key}
             onClick={() => onChange(o.key)}
-            className={`text-[14px] leading-[1.5] rounded-[3.2px] whitespace-nowrap ${active ? "font-semibold px-[9px] py-[5px] bg-white border" : "px-2 py-1"}`}
-            style={active ? { color: T.bodyText, borderColor: T.light, boxShadow: "0 2px 4px rgba(0,0,0,0.08)" } : { color: T.bodyText }}
+            className={`-mb-px pb-2 pt-1 text-[15px] leading-[1.5] whitespace-nowrap border-b-2 ${active ? "font-semibold" : ""}`}
+            style={{ color: T.bodyText, borderColor: active ? T.primary : "transparent" }}
           >
             {t(o.label)}
           </button>
@@ -6081,6 +6084,13 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const closeSummary = useCallback(() => setSummaryOpen(false), []);
+  // The AI summary docks beside the page (into this host) when the page keeps
+  // at least ~860px next to the 400px panel — enough for the timeline and the
+  // banner. Otherwise it lays over the page. Measured on the area below the
+  // patient bar, so a collapsed sidebar counts too.
+  const [summaryHost, setSummaryHost] = useState(null);
+  const [areaRef, areaWidth] = useElementWidth();
+  const summaryDocked = areaWidth - 400 >= 860;
   const contentScrollRef = useRef(null);
   // "dashboard" (default, per the Figma BGZ viewer frame) or "detailed" —
   // the rail + full-list view that PX360 used to be on its own.
@@ -6092,33 +6102,28 @@ function Px360Screen({ hasCaremap, onBack, onNavigate, persona, onSwitchPersona,
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader persona={persona} onSwitchPersona={onSwitchPersona} onReset={onReset} unreadCount={unreadCount} onOpenNotifications={onOpenNotifications} caseManagerPersonaId={caseManagerPersonaId} />
         <PatientBar back={onBack} activeTab="PX360" onTabClick={onNavigate} />
-        <div ref={contentScrollRef} className="flex-1 overflow-y-auto" style={{ backgroundColor: T.light }}>
+        <div ref={areaRef} className="flex-1 flex min-h-0">
+        <div ref={contentScrollRef} className="flex-1 min-w-0 overflow-y-auto" style={{ backgroundColor: T.light }}>
           <div className="px-8 py-6">
-            {/* Title row + Dashboard/Detailed switch, then the page-level
-                filters on their own row — Figma 13561-53708 / 13561-53722. */}
-            <div className="flex items-center justify-between">
+            {/* Title row with the page actions (same place in both views,
+                independent of the banner and the timeline), then the
+                Dashboard / Detailed view tabs. */}
+            <div className="flex items-center justify-between gap-6">
               {/* "Patient 360" is a product/module name, like "CAREMAPS" elsewhere — deliberately not translated */}
               <h2 className="text-[24px] font-semibold leading-[1.2]" style={{ color: T.black }}>Patient 360</h2>
               <div className="flex items-center gap-6">
-                <button onClick={() => setCustomizeOpen(true)} className="flex items-center gap-[2px] text-[14px] leading-[1.5]" style={{ color: T.primary }}>
+                <button onClick={() => setCustomizeOpen(true)} className="flex items-center gap-[2px] text-[14px] leading-[1.5] whitespace-nowrap" style={{ color: T.primary }}>
                   <Settings size={20} style={{ color: T.primary }} /> {t("Customize view")}
                 </button>
-                <Px360ViewSwitch value={view} onChange={setView} />
+                <AiSummaryButton active={summaryOpen} onClick={() => setSummaryOpen((v) => !v)} />
               </div>
             </div>
-            {/* Where the page-level organisation/time filters used to be (time
-                now lives in each category's Filters drawer; organisation was
-                dropped). On the Dashboard the AI summary button sits in the
-                timeline's header row instead. */}
-            {view === "detailed" ? (
-              <div className="flex items-center justify-end mt-4 mb-6">
-                <AiSummaryButton onClick={() => setSummaryOpen(true)} />
-              </div>
-            ) : (
-              <div className="mb-6" />
-            )}
-            <EncountersSection scrollRef={contentScrollRef} view={view} onViewChange={setView} layout={dashboardLayout} railLayout={railLayout} timelineDefaultRange={TIMELINE_DEFAULT_RANGE[persona?.role] ?? "1y"} persona={persona} summaryOpen={summaryOpen} onSummaryOpen={() => setSummaryOpen(true)} onSummaryClose={closeSummary} />
+            <Px360ViewTabs value={view} onChange={setView} />
+            <div className="mb-6" />
+            <EncountersSection scrollRef={contentScrollRef} view={view} onViewChange={setView} layout={dashboardLayout} railLayout={railLayout} timelineDefaultRange={TIMELINE_DEFAULT_RANGE[persona?.role] ?? "1y"} persona={persona} summaryOpen={summaryOpen} onSummaryClose={closeSummary} summaryHost={summaryHost} summaryDocked={summaryDocked} />
           </div>
+        </div>
+        <div ref={setSummaryHost} className="flex shrink-0 min-h-0" />
         </div>
       </div>
       {/* One "Customize view" button; what it edits depends on the view. */}
