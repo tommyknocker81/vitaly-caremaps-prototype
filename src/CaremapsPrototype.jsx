@@ -1948,26 +1948,14 @@ const ALLERGY_ENTRIES = [
     source: "Maastricht UMC+",
     label: "Medication | Iodinated contrast medium",
     phase: "active",
-    severity: "moderate",
+    // Severity is optional in the BgZ (and belongs to a reaction): this record
+    // has none, but its high criticality still makes it a critical allergy.
+    severity: null,
+    tone: "danger",
     detail: [
-      { label: "Reaction", value: "Generalised rash after CT chest" },
-      { label: "Severity", value: "Moderate" },
-      { label: "Criticality", value: "Low" },
-      { label: "Verification status", value: "Confirmed" },
-      { label: "Status", value: "ACTIVE" },
-    ],
-  },
-  {
-    id: "alg3",
-    date: "20/02/2024",
-    source: "Erasmus MC",
-    label: "Medication | Codeine (intolerance)",
-    phase: "active",
-    severity: "moderate",
-    detail: [
-      { label: "Reaction", value: "Severe nausea and vomiting" },
-      { label: "Severity", value: "Moderate" },
-      { label: "Criticality", value: "Low" },
+      { label: "Reaction", value: "Reaction during CT chest; details not recorded" },
+      { label: "Severity", value: null },
+      { label: "Criticality", value: "High" },
       { label: "Verification status", value: "Confirmed" },
       { label: "Status", value: "ACTIVE" },
     ],
@@ -1999,36 +1987,6 @@ const ALLERGY_ENTRIES = [
       { label: "Reaction", value: "Anaphylaxis" },
       { label: "Severity", value: "Severe" },
       { label: "Criticality", value: "High" },
-      { label: "Verification status", value: "Confirmed" },
-      { label: "Status", value: "ACTIVE" },
-    ],
-  },
-  {
-    id: "alg6",
-    date: "05/03/2025",
-    source: "GP Practice de Linde, Amersfoort",
-    label: "Food | Lactose (intolerance)",
-    phase: "active",
-    severity: "low",
-    detail: [
-      { label: "Reaction", value: "Bloating and abdominal cramps" },
-      { label: "Severity", value: "Mild" },
-      { label: "Criticality", value: "Low" },
-      { label: "Verification status", value: "Unconfirmed" },
-      { label: "Status", value: "ACTIVE" },
-    ],
-  },
-  {
-    id: "alg7",
-    date: "15/04/2024",
-    source: "Erasmus MC",
-    label: "Environmental | Latex",
-    phase: "active",
-    severity: "moderate",
-    detail: [
-      { label: "Reaction", value: "Contact dermatitis" },
-      { label: "Severity", value: "Moderate" },
-      { label: "Criticality", value: "Low" },
       { label: "Verification status", value: "Confirmed" },
       { label: "Status", value: "ACTIVE" },
     ],
@@ -2725,7 +2683,7 @@ const PX360_CATEGORIES = [
   { key: "encounters", label: "Encounters", icon: CalendarDays, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }], period: true },
   { key: "diagnoses", label: "Complaints and diagnoses", icon: Stethoscope, entries: DIAGNOSIS_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Type"), detailFilter("Verification status")], period: true },
   { key: "treatment", label: "Treatment restrictions", icon: ClipboardList, entries: RESTRICTION_ENTRIES, phases: [{ key: "current", label: "Current" }, { key: "previous", label: "Previous" }] },
-  { key: "allergies", label: "Allergies", icon: ShieldAlert, entries: ALLERGY_ENTRIES, sorts: ["severity", "newest", "oldest"], phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Category"), detailFilter("Criticality"), detailFilter("Severity"), detailFilter("Verification status")] },
+  { key: "allergies", label: "Allergies", icon: ShieldAlert, entries: ALLERGY_ENTRIES, sorts: ["severity", "newest", "oldest"], phases: [{ key: "active", label: "Active" }, { key: "resolved", label: "Resolved" }], filters: [typeFilter("Category"), detailFilter("Criticality"), detailFilter("Severity", "Not recorded"), detailFilter("Verification status")] },
   { key: "medication", label: "Medication", icon: Pill, entries: MEDICATION_ENTRIES, phases: [{ key: "active", label: "Active" }, { key: "stopped", label: "Stopped" }], filters: [typeFilter("Drug class"), detailFilter("Route"), detailFilter("Prescriber")], period: true },
   { key: "procedures", label: "Procedures", icon: ClipboardPlus, entries: PROCEDURE_ENTRIES, phases: [{ key: "past", label: "Past" }, { key: "planned", label: "Planned" }], filters: [procedureGroupFilter, detailFilter("Performed by")], period: true },
   { key: "lab", label: "Laboratory results", icon: FlaskConical, entries: LAB_ENTRIES, filters: [typeFilter("Test"), detailFilter("Interpretation", "Normal")], period: true },
@@ -2869,8 +2827,30 @@ function CriticalMark() {
 }
 
 const SEVERITY_RANK = { high: 3, moderate: 2, low: 1 };
+// "Most severe first" rank. A missing severity isn't treated as harmless: a
+// high-criticality allergy without one ranks just below the severe ones,
+// otherwise just below moderate.
+function severityRank(item) {
+  if (item.severity) return SEVERITY_RANK[item.severity] ?? 0;
+  if (item.severity === null) return item.detail?.some((d) => d.label === "Criticality" && d.value === "High") ? 2.5 : 1.5;
+  return 0;
+}
 
-function SeverityDots({ severity }) {
+// `severity: null` = the field is empty in the source (optional in the BgZ):
+// three hollow dots with a tooltip, so "not recorded" never looks like "mild".
+// Outlined red when the record is critical anyway (high criticality), since
+// the title no longer turns red.
+function SeverityDots({ severity, critical }) {
+  const { t } = useLanguage();
+  if (severity === null) {
+    return (
+      <span className="inline-flex items-center gap-[3px] ml-2 align-middle" title={t("Severity not recorded")} aria-label={t("Severity not recorded")}>
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="w-[7px] h-[7px] rounded-full border" style={{ borderColor: critical ? T.danger : T.gray500 }} />
+        ))}
+      </span>
+    );
+  }
   const filled = { high: 3, moderate: 2, low: 1 }[severity] || 0;
   const color = { high: T.danger, moderate: T.warning, low: T.primary }[severity];
   return (
@@ -2898,7 +2878,9 @@ function RecordDetailBlock({ item }) {
             <StatusBadge muted={d.value === "RESOLVED" || d.value === "STOPPED"}>{t(d.value)}</StatusBadge>
           </div>
         ) : (
-          <DetailRow key={d.label} label={d.label}>{t(d.value)}</DetailRow>
+          <DetailRow key={d.label} label={d.label}>
+            {d.value === null ? <span className="italic" style={{ color: T.gray600 }}>{t("Not recorded")}</span> : t(d.value)}
+          </DetailRow>
         )
       )}
     </div>
@@ -2909,7 +2891,9 @@ function RecordDetailBlock({ item }) {
 // bold label + chevron, and height-animated expand as Encounters' own cards.
 function RecordCard({ item, isExpanded, onToggle }) {
   const { t } = useLanguage();
-  const color = item.tone === "danger" ? T.danger : T.primary;
+  // Records with a severity indicator (allergies) keep a blue title: the
+  // coloured dots carry the risk. Others (e.g. the CPR restriction) turn red.
+  const color = item.tone === "danger" && item.severity === undefined ? T.danger : T.primary;
   return (
     <motion.div
       layout
@@ -2923,7 +2907,7 @@ function RecordCard({ item, isExpanded, onToggle }) {
         <div className="flex items-center justify-between text-[13px] mb-1" style={{ color: T.gray600 }}>
           <span>
             {item.date}
-            {item.severity && <SeverityDots severity={item.severity} />}
+            {item.severity !== undefined && <SeverityDots severity={item.severity} critical={item.tone === "danger"} />}
           </span>
           <span>{item.source}</span>
         </div>
@@ -3125,18 +3109,16 @@ Object.assign(NL, {
   // Allergies
   "Medication | Penicillin": "Medicatie | Penicilline",
   "Medication | Iodinated contrast medium": "Medicatie | Jodiumhoudend contrastmiddel",
-  "Medication | Codeine (intolerance)": "Medicatie | Codeïne (intolerantie)",
   "Environmental | Wasp venom": "Omgeving | Wespengif",
   "Food | Peanuts": "Voeding | Pinda's",
-  "Food | Lactose (intolerance)": "Voeding | Lactose (intolerantie)",
-  "Environmental | Latex": "Omgeving | Latex",
   "Anaphylaxis": "Anafylaxie",
-  "Bloating and abdominal cramps": "Opgeblazen gevoel en buikkrampen",
-  "Contact dermatitis": "Contactdermatitis",
   "Sodium | 139 mmol/L": "Natrium | 139 mmol/L",
   "Potassium | 4.3 mmol/L": "Kalium | 4.3 mmol/L",
   "Normal": "Normaal",
   "Not every source loaded": "Niet alle bronnen geladen",
+  "Reaction during CT chest; details not recorded": "Reactie tijdens CT-thorax; details niet vastgelegd",
+  "Not recorded": "Niet vastgelegd",
+  "Severity not recorded": "Ernst niet vastgelegd",
   "Contains critical information": "Bevat kritieke informatie",
   "AI summary": "AI-samenvatting",
   "Period": "Periode",
@@ -3153,8 +3135,6 @@ Object.assign(NL, {
   "Procedure group": "Verrichtingsgroep",
   "Test": "Bepaling",
   "Urticaria and facial swelling": "Urticaria en zwelling van het gezicht",
-  "Generalised rash after CT chest": "Gegeneraliseerde huiduitslag na CT thorax",
-  "Severe nausea and vomiting": "Ernstige misselijkheid en braken",
   "Local swelling": "Lokale zwelling",
 
   // Medication
@@ -3653,14 +3633,14 @@ function TreatmentRestrictionBanner({ entry, onOpen }) {
 // severity, source on the right, then the label and an expand chevron. Rows
 // are divided by a rule rather than boxed like the Detailed view's cards.
 function DashboardRow({ date, source, label, tone, severity, isExpanded, onToggle, isLast, children }) {
-  const color = tone === "danger" ? "#C74139" : T.primary;
+  const color = tone === "danger" && severity === undefined ? "#C74139" : T.primary;
   return (
     <div className={isLast ? "" : "border-b"} style={{ borderColor: T.border }}>
       <button onClick={onToggle} className="w-full text-left py-2">
         <div className="flex items-center justify-between text-[14px] leading-[1.5]" style={{ color: T.gray600 }}>
           <span className="flex items-center">
             {date}
-            {severity && <SeverityDots severity={severity} />}
+            {severity !== undefined && <SeverityDots severity={severity} critical={tone === "danger"} />}
           </span>
           <span className="text-right">{source}</span>
         </div>
@@ -4465,7 +4445,7 @@ const src = (text, cat, id) => ({ text, cat, id });
 
 const AI_SUMMARY_SAFETY_CORE = [
   [src("Not for resuscitation", "treatment", "r2"), ", agreed with patient and GP on 12/08/2026. Replaces the 2023 decision “yes, with limitations”."],
-  ["Severe allergies: ", src("penicillin", "allergies", "alg1"), " (urticaria, facial swelling) and ", src("peanuts", "allergies", "alg5"), " (anaphylaxis). Also ", src("codeine", "allergies", "alg3"), " intolerance, ", src("iodinated contrast", "allergies", "alg2"), " and ", src("latex", "allergies", "alg7"), "."],
+  ["Severe allergies: ", src("penicillin", "allergies", "alg1"), " (urticaria, facial swelling) and ", src("peanuts", "allergies", "alg5"), " (anaphylaxis). Also ", src("iodinated contrast", "allergies", "alg2"), ": high criticality, severity of the reaction not recorded."],
 ];
 
 const AI_SUMMARIES = {
@@ -4655,7 +4635,7 @@ const AI_SUMMARIES = {
           ["Bone metastasis in the left hip, ", src("irradiated", "procedures", "proc2"), " 03–10/09/2026."],
           ["Breathlessness ", src("MRC grade 4", "functional", "fun4"), "; ", src("oxygen saturation 91%", "vitals", "vit2"), "; ", src("oxygen", "devices", "dev1"), " on exertion."],
           [src("Haemoglobin 7.1 mmol/L", "lab", "lab1"), " (low); ", src("heart rate 92", "vitals", "vit3"), " at rest."],
-          [src("Increased fall risk", "alerts", "alr3"), ". ", src("Latex allergy", "allergies", "alg7"), " (contact dermatitis)."],
+          [src("Increased fall risk", "alerts", "alr3"), "."],
           [src("Not for resuscitation", "treatment", "r2"), " (12/08/2026)."],
         ],
       },
@@ -5163,7 +5143,7 @@ function EncountersSection({ scrollRef, view, onViewChange, layout, railLayout, 
   const byDate = (order) => (a, b) => (order === "oldest" ? parseDMY(a.date) - parseDMY(b.date) : parseDMY(b.date) - parseDMY(a.date));
   const recordComparator = (order) =>
     order === "severity"
-      ? (a, b) => (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0) || byDate("newest")(a, b)
+      ? (a, b) => severityRank(b) - severityRank(a) || byDate("newest")(a, b)
       : byDate(order);
   const recordListFor = (cat) => {
     const phase = phaseOf(cat);

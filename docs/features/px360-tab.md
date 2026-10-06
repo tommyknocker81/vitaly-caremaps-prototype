@@ -107,7 +107,9 @@ records, e.g. "ALLERGIES (7)", on the Dashboard card header and in the Detailed 
 so the count is visible while a card is collapsed or a category isn't opened. The count covers all
 statuses (Active + Resolved) and follows the page-level organisation/time filters; Encounters shows
 its known server total. Category names are black, the number and every record title are primary
-blue. Records with `tone: "danger"` (CPR, penicillin, peanuts) stay red.
+blue. Records with `tone: "danger"` turn red, except those with a severity indicator (allergies,
+2026-10-06): their title stays blue and the red / orange / blue dots carry the risk. So today only
+the CPR restriction has a red title.
 The rail's per-row source indicator shows a spinning loader while sources load (it showed "n/5"
 until 2026-10-06; the source count is still in the "Sources (n/5 loaded)" header) and then disappears;
 the check mark after a successful load was removed as clutter. A red warning icon remains only if a
@@ -143,9 +145,25 @@ sections that fit its BgZ building block, instead of a single generic "Type":
 - Sections are declared per category in `PX360_CATEGORIES` (`filters: [typeFilter(...),
   detailFilter(...), procedureGroupFilter]`). Options are built from the records themselves, so
   adding a record with a new value adds a checkbox.
-- Added records so the filters have something to choose between: allergies Peanuts (food, severe),
-  Lactose intolerance (food, mild, unconfirmed) and Latex (environmental, active); lab results
-  Sodium and Potassium, both with a Normal interpretation.
+- Added records so the filters have something to choose between: allergy Peanuts (food, severe);
+  lab results Sodium and Potassium, both with a Normal interpretation. (Codeine, lactose and latex
+  allergies were added too and removed again on 2026-10-06 to keep the list at 4.)
+
+**Allergies without a severity** (2026-10-06). Severity is optional in the BgZ (and belongs to a
+reaction, not the allergy), so the demo has 4 allergies of which one, iodinated contrast medium,
+has none: high criticality, reaction details not recorded. How an empty severity is handled:
+- The record carries `severity: null` and a `Severity` detail row with `value: null` (field present
+  but empty), as opposed to a record without the field at all.
+- Card: three hollow dots with the tooltip "Severity not recorded", so it never reads as mild;
+  outlined red when the allergy is critical (high criticality), grey otherwise.
+- Expanded record: "Not recorded" in grey italics instead of leaving the row out.
+- Filters: the Severity section offers "Not recorded (n)".
+- Sort "Most severe first": a missing severity isn't treated as harmless. With high criticality it
+  ranks just below the severe ones, otherwise just below moderate (`severityRank`).
+- High criticality alone makes an allergy critical (red title, counts for the category's alert
+  mark): criticality is the BgZ's measure of future risk, severity only describes a past reaction.
+- The AI summary names it: "iodinated contrast: high criticality, severity of the reaction not
+  recorded".
 
 ## Implementation notes
 
@@ -332,8 +350,8 @@ sections that fit its BgZ building block, instead of a single generic "Type":
     checkbox labels are taken from the *translated* record label's prefix, so no separate
     dictionary entry per type is needed.
   - Content deliberately extends the existing story rather than inventing a new one. Examples: the
-    penicillin allergy matches the Figma sample; the codeine intolerance explains why he's on
-    morphine; the contrast allergy dates from the Encounters list's CT chest; the pneumonia
+    penicillin allergy matches the Figma sample; the contrast allergy dates from the Encounters
+    list's CT chest; the pneumonia
     diagnosis, CRP result and pleural puncture all date from the 16/08/2025 "Acute breathlessness"
     admission; the treatment restrictions match the PZP tab's "Treatment wishes and boundaries";
     the demographics and insurer (FBTO V02110) match the HIS side panel.
